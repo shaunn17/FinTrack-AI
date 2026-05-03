@@ -104,7 +104,18 @@ def generate_health_score_for_month(month: str):
     month_first = _month_first_day(month)
     summary = _to_jsonable(get_summary(month))
     summary["month"] = month_first
-    portfolio = _to_jsonable(get_portfolio())
+    try:
+        portfolio = _to_jsonable(get_portfolio())
+    except Exception as exc:
+        # Yahoo / aggregation can timeout; still score budget side.
+        portfolio = {
+            "total_invested": 0,
+            "current_value": 0,
+            "total_gain": 0,
+            "overall_return_pct": 0,
+            "positions": [],
+            "_portfolio_error": str(exc),
+        }
 
     try:
         scored = generate_health_score(summary, portfolio)

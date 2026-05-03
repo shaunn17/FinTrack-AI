@@ -42,8 +42,9 @@ export const EXPENSE_CATEGORIES = [
 ];
 
 export const formatCategory = (cat) =>
-  cat
+  String(cat ?? "")
     .split("_")
+    .filter((w) => w.length > 0)
     .map((w) => w[0] + w.slice(1).toLowerCase())
     .join(" ");
 
