@@ -21,7 +21,7 @@ export default function CsvImportCard({ onImported }) {
       if (data.skipped?.length > 0) {
         setSkippedPreview(data.skipped.slice(0, 15));
       }
-      if (!dryRun && data.imported > 0) {
+      if (!dryRun) {
         onImported?.();
       }
     } catch (e) {

@@ -10,15 +10,23 @@ export function useInvestments() {
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const errs = [];
     try {
-      const [tx, pf] = await Promise.all([getTransactions(), getPortfolio()]);
+      const tx = await getTransactions();
       setTransactions(tx);
+    } catch (err) {
+      errs.push(`Transactions: ${getApiErrorMessage(err)}`);
+      setTransactions([]);
+    }
+    try {
+      const pf = await getPortfolio();
       setPortfolio(pf);
     } catch (err) {
-      setError(getApiErrorMessage(err));
-    } finally {
-      setLoading(false);
+      errs.push(`Portfolio / live prices: ${getApiErrorMessage(err)}`);
+      setPortfolio(null);
     }
+    setError(errs.length > 0 ? errs.join(" · ") : null);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
