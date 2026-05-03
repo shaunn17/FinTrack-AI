@@ -1,6 +1,7 @@
 """AI service: spending insights + financial health score.
 
-Uses **Groq** (``llama-3.1-70b-versatile``) via ``GROQ_API_KEY``.
+Uses **Groq** (default ``llama-3.3-70b-versatile``) via ``GROQ_API_KEY``.
+Override with env ``GROQ_MODEL`` if Groq rotates IDs (see https://console.groq.com/docs/deprecations ).
 
 Anthropic / Claude is **disabled** in this file to avoid paid API usage; see the
 commented block below if you want to switch back later.
@@ -17,7 +18,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GROQ_MODEL = "llama-3.1-70b-versatile"
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 # ANTHROPIC_MODEL = "claude-opus-4-5"
 
 
@@ -42,8 +43,17 @@ def _call_groq(prompt: str, *, json_mode: bool = False) -> str:
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
-    response = client.chat.completions.create(**kwargs)
-    return response.choices[0].message.content or ""
+    try:
+        response = client.chat.completions.create(**kwargs)
+        return response.choices[0].message.content or ""
+    except Exception as e:
+        err = str(e).lower()
+        if "model" in err or "decommission" in err or "does not exist" in err:
+            raise RuntimeError(
+                f"{e}\n\nTip: Groq retires model IDs often. Set GROQ_MODEL in backend/.env "
+                f"(see https://console.groq.com/docs/models ). Current default is {GROQ_MODEL}."
+            ) from e
+        raise
 
 
 # def _call_anthropic(prompt: str, *, json_mode: bool = False) -> str:

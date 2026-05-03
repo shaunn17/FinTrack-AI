@@ -29,30 +29,60 @@ export default function Dashboard() {
   const [portfolio, setPortfolio] = useState(null);
   const [score, setScore] = useState(null);
   const [error, setError] = useState(null);
+  const [portfolioLoading, setPortfolioLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      getIncome(month),
-      getBudgetSummary(month),
-      getExpenses(month),
-      getTransactions(),
-      getPortfolio(),
-      getHealthScore(month),
-    ])
-      .then(([inc, sum, exp, tx, pf, sc]) => {
-        if (cancelled) return;
-        setIncome(inc);
-        setSummary(sum);
-        setExpenses(exp);
-        setTransactions(tx);
-        setPortfolio(pf);
-        setScore(sc);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(getApiErrorMessage(err));
-      });
+    const errs = [];
+
+    (async () => {
+      setError(null);
+      setPortfolioLoading(true);
+
+      try {
+        const [inc, sum, exp] = await Promise.all([
+          getIncome(month),
+          getBudgetSummary(month),
+          getExpenses(month),
+        ]);
+        if (!cancelled) {
+          setIncome(inc);
+          setSummary(sum);
+          setExpenses(exp);
+        }
+      } catch (err) {
+        if (!cancelled) errs.push(`Budget: ${getApiErrorMessage(err)}`);
+      }
+
+      try {
+        const tx = await getTransactions();
+        if (!cancelled) setTransactions(tx);
+      } catch (err) {
+        if (!cancelled) errs.push(`Transactions: ${getApiErrorMessage(err)}`);
+      }
+
+      try {
+        const pf = await getPortfolio();
+        if (!cancelled) setPortfolio(pf);
+      } catch (err) {
+        if (!cancelled) {
+          errs.push(`Portfolio (live prices): ${getApiErrorMessage(err)}`);
+          setPortfolio(null);
+        }
+      } finally {
+        if (!cancelled) setPortfolioLoading(false);
+      }
+
+      try {
+        const sc = await getHealthScore(month);
+        if (!cancelled) setScore(sc);
+      } catch (err) {
+        if (!cancelled) errs.push(`Health score: ${getApiErrorMessage(err)}`);
+      }
+
+      if (!cancelled) setError(errs.length > 0 ? errs.join(" · ") : null);
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -61,8 +91,12 @@ export default function Dashboard() {
   const monthlyIncome = Number(income?.amount || 0);
   const totalSpent = Number(summary?.total_spent || 0);
   const savings = Number(summary?.savings || 0);
-  const portfolioValue = Number(portfolio?.current_value || 0);
+  const txCostBasis = transactions.reduce(
+    (s, t) => s + Number(t.total_cost || 0),
+    0
+  );
   const portfolioReturn = Number(portfolio?.overall_return_pct || 0);
+  const portfolioStatsPending = portfolioLoading && !portfolio;
 
   const chartData = (summary?.category_breakdown || []).map((c) => ({
     name: c.category,
@@ -93,11 +127,39 @@ export default function Dashboard() {
           value={formatMoney(savings)}
           tone={savings >= 0 ? "gain" : "loss"}
         />
-        <Stat label="Portfolio Value" value={formatMoney(portfolioValue)} />
+        <Stat
+          label="Portfolio Value"
+          value={
+            portfolioStatsPending
+              ? "…"
+              : portfolio
+              ? formatMoney(Number(portfolio.current_value || 0))
+              : txCostBasis > 0
+              ? formatMoney(txCostBasis)
+              : formatMoney(0)
+          }
+          hint={
+            !portfolio && !portfolioStatsPending && txCostBasis > 0
+              ? "Cost basis (live quote failed or timed out)"
+              : undefined
+          }
+        />
         <Stat
           label="Portfolio Return"
-          value={formatPercent(portfolioReturn)}
-          tone={portfolioReturn >= 0 ? "gain" : "loss"}
+          value={
+            portfolioStatsPending
+              ? "…"
+              : portfolio
+              ? formatPercent(portfolioReturn)
+              : "—"
+          }
+          tone={
+            portfolio
+              ? portfolioReturn >= 0
+                ? "gain"
+                : "loss"
+              : "neutral"
+          }
         />
       </div>
 
@@ -201,7 +263,7 @@ export default function Dashboard() {
   );
 }
 
-function Stat({ label, value, tone = "neutral" }) {
+function Stat({ label, value, tone = "neutral", hint }) {
   const toneClass =
     tone === "gain"
       ? "text-gain"
@@ -216,6 +278,9 @@ function Stat({ label, value, tone = "neutral" }) {
       <p className={`text-xl sm:text-2xl font-semibold mt-1 ${toneClass}`}>
         {value}
       </p>
+      {hint && (
+        <p className="text-[10px] text-text-muted mt-1 leading-snug">{hint}</p>
+      )}
     </div>
   );
 }

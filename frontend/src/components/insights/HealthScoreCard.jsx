@@ -54,8 +54,13 @@ export default function HealthScoreCard({ data, size = 160, compact = false }) {
     );
   }
 
-  const breakdown = data.breakdown?.breakdown || data.breakdown || {};
-  const summary = data.breakdown?.summary || "";
+  const rawBd = data.breakdown?.breakdown ?? data.breakdown;
+  const breakdown =
+    rawBd && typeof rawBd === "object" && !Array.isArray(rawBd) ? rawBd : {};
+  const summary =
+    typeof data.breakdown === "object" && data.breakdown && !Array.isArray(data.breakdown)
+      ? String(data.breakdown.summary || "")
+      : "";
   const score = Number(data.score ?? 0);
   const color = colorForScore(score);
 
