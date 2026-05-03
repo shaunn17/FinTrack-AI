@@ -4,7 +4,8 @@ const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 export const api = axios.create({
   baseURL,
-  headers: { "Content-Type": "application/json" },
+  // Do not set Content-Type globally — it breaks multipart (CSV import).
+  // JSON requests still get application/json when sending plain objects.
   timeout: 30000,
 });
 
@@ -69,7 +70,9 @@ export const deleteTransaction = (id) =>
   api.delete(`/api/investments/transactions/${id}`).then((r) => r.data);
 
 export const getPortfolio = () =>
-  api.get("/api/investments/portfolio").then((r) => r.data);
+  api
+    .get("/api/investments/portfolio", { timeout: 120000 })
+    .then((r) => r.data);
 
 /** @param {File} file
  *  @param {boolean} [dryRun]

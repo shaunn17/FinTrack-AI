@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from collections import defaultdict
 from datetime import date as DateType
 from decimal import Decimal
@@ -20,6 +22,23 @@ from ..services.investment_csv_import import parse_investment_csv
 from ..services.stock_service import get_current_price
 
 router = APIRouter(prefix="/investments", tags=["investments"])
+
+
+def _batch_prices(tickers: list[str]) -> Dict[str, float | None]:
+    """Fetch live prices in parallel to avoid 30s+ sequential timeouts."""
+    out: Dict[str, float | None] = {t: None for t in tickers}
+    if not tickers:
+        return out
+    workers = min(8, len(tickers))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        future_map = {pool.submit(get_current_price, t): t for t in tickers}
+        for fut in as_completed(future_map):
+            t = future_map[fut]
+            try:
+                out[t] = fut.result()
+            except Exception:
+                out[t] = None
+    return out
 
 
 def _serialize(payload: dict) -> dict:
@@ -136,7 +155,7 @@ def get_portfolio():
     )
 
     for row in rows:
-        ticker = row["ticker"]
+        ticker = str(row["ticker"]).strip().upper()
         bucket = by_ticker[ticker]
         bucket["ticker"] = ticker
         bucket["stock_name"] = row.get("stock_name") or ticker
@@ -147,12 +166,15 @@ def get_portfolio():
     total_invested = Decimal("0")
     total_value = Decimal("0")
 
+    tickers = list(by_ticker.keys())
+    prices = _batch_prices(tickers)
+
     for ticker, bucket in by_ticker.items():
         shares: Decimal = bucket["total_shares"]
         cost: Decimal = bucket["total_cost"]
         avg_buy = (cost / shares) if shares > 0 else Decimal("0")
 
-        live = get_current_price(ticker)
+        live = prices.get(ticker)
         current_price = Decimal(str(live)) if live is not None else None
         current_value = (
             current_price * shares if current_price is not None else None
