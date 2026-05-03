@@ -1,0 +1,227 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import HealthScoreCard from "../components/insights/HealthScoreCard";
+import Navbar from "../components/layout/Navbar";
+import Badge from "../components/shared/Badge";
+import Chart from "../components/shared/Chart";
+import {
+  getApiErrorMessage,
+  getBudgetSummary,
+  getExpenses,
+  getHealthScore,
+  getIncome,
+  getPortfolio,
+  getTransactions,
+} from "../services/api";
+import {
+  currentMonthString,
+  formatDate,
+  formatMoney,
+  formatPercent,
+} from "../styles/theme";
+
+export default function Dashboard() {
+  const month = currentMonthString();
+  const [income, setIncome] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [expenses, setExpenses] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [portfolio, setPortfolio] = useState(null);
+  const [score, setScore] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      getIncome(month),
+      getBudgetSummary(month),
+      getExpenses(month),
+      getTransactions(),
+      getPortfolio(),
+      getHealthScore(month),
+    ])
+      .then(([inc, sum, exp, tx, pf, sc]) => {
+        if (cancelled) return;
+        setIncome(inc);
+        setSummary(sum);
+        setExpenses(exp);
+        setTransactions(tx);
+        setPortfolio(pf);
+        setScore(sc);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(getApiErrorMessage(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [month]);
+
+  const monthlyIncome = Number(income?.amount || 0);
+  const totalSpent = Number(summary?.total_spent || 0);
+  const savings = Number(summary?.savings || 0);
+  const portfolioValue = Number(portfolio?.current_value || 0);
+  const portfolioReturn = Number(portfolio?.overall_return_pct || 0);
+
+  const chartData = (summary?.category_breakdown || []).map((c) => ({
+    name: c.category,
+    value: Number(c.total),
+  }));
+
+  const recentExpenses = expenses.slice(0, 5);
+  const recentTransactions = transactions.slice(0, 5);
+
+  return (
+    <>
+      <Navbar
+        title="Dashboard"
+        subtitle={`Overview for ${prettyMonth(month)}`}
+      />
+
+      {error && (
+        <div className="card p-4 mb-4 text-loss text-sm border-loss/30">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <Stat label="Monthly Income" value={formatMoney(monthlyIncome)} />
+        <Stat label="Total Spent" value={formatMoney(totalSpent)} />
+        <Stat
+          label="Savings"
+          value={formatMoney(savings)}
+          tone={savings >= 0 ? "gain" : "loss"}
+        />
+        <Stat label="Portfolio Value" value={formatMoney(portfolioValue)} />
+        <Stat
+          label="Portfolio Return"
+          value={formatPercent(portfolioReturn)}
+          tone={portfolioReturn >= 0 ? "gain" : "loss"}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <div className="card p-5 lg:col-span-2">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">Spending by Category</h3>
+            <Link
+              to="/budget"
+              className="text-xs text-accent hover:underline"
+            >
+              View Budget →
+            </Link>
+          </div>
+          <Chart type="donut" data={chartData} height={280} />
+        </div>
+        <div className="lg:col-span-1">
+          <HealthScoreCard data={score} size={140} compact />
+          {!score?.score && (
+            <p className="text-[11px] text-text-muted mt-2 text-center">
+              Visit{" "}
+              <Link to="/insights" className="text-accent hover:underline">
+                Insights
+              </Link>{" "}
+              to generate a score for this month.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">Recent Expenses</h3>
+            <Link to="/budget" className="text-xs text-accent hover:underline">
+              View All →
+            </Link>
+          </div>
+          {recentExpenses.length === 0 ? (
+            <p className="text-sm text-text-secondary">No expenses this month.</p>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {recentExpenses.map((e) => (
+                <li key={e.id} className="py-2.5 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Badge category={e.category} />
+                      <span className="text-xs text-text-secondary">
+                        {formatDate(e.date)}
+                      </span>
+                    </div>
+                    {e.note && (
+                      <p className="text-sm text-text-secondary truncate mt-0.5">
+                        {e.note}
+                      </p>
+                    )}
+                  </div>
+                  <span className="font-medium tabular-nums">
+                    {formatMoney(e.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold">Recent Transactions</h3>
+            <Link to="/investments" className="text-xs text-accent hover:underline">
+              View All →
+            </Link>
+          </div>
+          {recentTransactions.length === 0 ? (
+            <p className="text-sm text-text-secondary">No transactions logged.</p>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {recentTransactions.map((t) => (
+                <li key={t.id} className="py-2.5 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{t.ticker}</span>
+                      <span className="text-xs text-text-secondary">
+                        {formatDate(t.date)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-text-secondary truncate mt-0.5">
+                      {Number(t.quantity)} sh @ {formatMoney(t.buy_price)}
+                    </p>
+                  </div>
+                  <span className="font-medium tabular-nums">
+                    {formatMoney(t.total_cost)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Stat({ label, value, tone = "neutral" }) {
+  const toneClass =
+    tone === "gain"
+      ? "text-gain"
+      : tone === "loss"
+      ? "text-loss"
+      : "text-text-primary";
+  return (
+    <div className="card p-4">
+      <p className="text-[11px] uppercase tracking-wide text-text-secondary">
+        {label}
+      </p>
+      <p className={`text-xl sm:text-2xl font-semibold mt-1 ${toneClass}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function prettyMonth(monthString) {
+  const [y, m] = monthString.split("-");
+  const d = new Date(Number(y), Number(m) - 1, 1);
+  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
