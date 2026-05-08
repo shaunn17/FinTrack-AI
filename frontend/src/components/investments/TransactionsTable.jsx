@@ -1,7 +1,7 @@
 import { deleteTransaction } from "../../services/api";
 import { formatDate, formatMoney } from "../../styles/theme";
 
-export default function TransactionsTable({ transactions, onChanged }) {
+export default function TransactionsTable({ transactions, livePriceByTicker = {}, onChanged }) {
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this transaction?")) return;
     await deleteTransaction(id);
@@ -30,12 +30,22 @@ export default function TransactionsTable({ transactions, onChanged }) {
               <th className="text-left px-5 py-2.5 font-medium">Ticker</th>
               <th className="text-right px-5 py-2.5 font-medium">Qty</th>
               <th className="text-right px-5 py-2.5 font-medium">Buy</th>
+              <th className="text-right px-5 py-2.5 font-medium">Last</th>
+              <th className="text-right px-5 py-2.5 font-medium">Value @ last</th>
               <th className="text-right px-5 py-2.5 font-medium">Total</th>
               <th className="px-5 py-2.5" />
             </tr>
           </thead>
           <tbody className="table-row-alt">
-            {transactions.map((t) => (
+            {transactions.map((t) => {
+              const ticker = String(t.ticker || "").toUpperCase();
+              const lastRaw = livePriceByTicker[ticker];
+              const lastNum = lastRaw != null ? Number(lastRaw) : null;
+              const lastOk = lastNum != null && Number.isFinite(lastNum);
+              const qty = Number(t.quantity);
+              const valueAtLast =
+                lastOk && Number.isFinite(qty) ? qty * lastNum : null;
+              return (
               <tr key={t.id} className="border-b border-border/50 last:border-b-0">
                 <td className="px-5 py-2.5 text-text-secondary whitespace-nowrap">
                   {formatDate(t.date)}
@@ -46,6 +56,12 @@ export default function TransactionsTable({ transactions, onChanged }) {
                 </td>
                 <td className="px-5 py-2.5 text-right tabular-nums">
                   {formatMoney(t.buy_price)}
+                </td>
+                <td className="px-5 py-2.5 text-right tabular-nums">
+                  {lastOk ? formatMoney(lastNum) : "—"}
+                </td>
+                <td className="px-5 py-2.5 text-right tabular-nums">
+                  {valueAtLast != null ? formatMoney(valueAtLast) : "—"}
                 </td>
                 <td className="px-5 py-2.5 text-right tabular-nums">
                   {formatMoney(t.total_cost)}
@@ -60,7 +76,8 @@ export default function TransactionsTable({ transactions, onChanged }) {
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

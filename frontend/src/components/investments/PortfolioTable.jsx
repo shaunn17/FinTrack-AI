@@ -1,6 +1,21 @@
 import { formatMoney, formatPercent } from "../../styles/theme";
 
-export default function PortfolioTable({ positions }) {
+function formatQuotesFetchedAt(iso) {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString(undefined, {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+  } catch {
+    return null;
+  }
+}
+
+export default function PortfolioTable({ positions, quotesFetchedAt }) {
+  const quotesLabel = formatQuotesFetchedAt(quotesFetchedAt);
   if (!positions || positions.length === 0) {
     return (
       <div className="card p-8 text-center text-text-secondary">
@@ -13,6 +28,11 @@ export default function PortfolioTable({ positions }) {
     <div className="card overflow-hidden">
       <div className="px-5 py-3 border-b border-border">
         <h3 className="font-semibold">Portfolio</h3>
+        {quotesLabel && (
+          <p className="text-xs text-text-secondary mt-1">
+            Live prices fetched {quotesLabel} (per-ticker cache on server keeps this fast on refresh).
+          </p>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
