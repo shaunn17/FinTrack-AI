@@ -95,7 +95,13 @@ export default function Dashboard() {
     (s, t) => s + Number(t.total_cost || 0),
     0
   );
-  const portfolioReturn = Number(portfolio?.overall_return_pct || 0);
+  const invPositionCount = portfolio?.positions?.length ?? 0;
+  const portfolioLiveValue =
+    portfolio?.current_value != null ? Number(portfolio.current_value) : null;
+  const portfolioReturn =
+    portfolio?.overall_return_pct != null
+      ? Number(portfolio.overall_return_pct)
+      : null;
   const portfolioStatsPending = portfolioLoading && !portfolio;
 
   const chartData = (summary?.category_breakdown || []).map((c) => ({
@@ -133,15 +139,23 @@ export default function Dashboard() {
             portfolioStatsPending
               ? "…"
               : portfolio
-              ? formatMoney(Number(portfolio.current_value || 0))
-              : txCostBasis > 0
-              ? formatMoney(txCostBasis)
-              : formatMoney(0)
+                ? portfolioLiveValue != null
+                  ? formatMoney(portfolioLiveValue)
+                  : invPositionCount > 0
+                    ? "—"
+                    : formatMoney(0)
+                : txCostBasis > 0
+                  ? formatMoney(txCostBasis)
+                  : formatMoney(0)
           }
           hint={
-            !portfolio && !portfolioStatsPending && txCostBasis > 0
-              ? "Cost basis (live quote failed or timed out)"
-              : undefined
+            portfolio && portfolioLiveValue == null && invPositionCount > 0
+              ? portfolio.unpriced_tickers?.length
+                ? `No live price for: ${portfolio.unpriced_tickers.join(", ")}`
+                : "Live market value unavailable"
+              : !portfolio && !portfolioStatsPending && txCostBasis > 0
+                ? "Cost basis (portfolio request failed or timed out)"
+                : undefined
           }
         />
         <Stat
@@ -149,12 +163,12 @@ export default function Dashboard() {
           value={
             portfolioStatsPending
               ? "…"
-              : portfolio
-              ? formatPercent(portfolioReturn)
-              : "—"
+              : portfolio && portfolioReturn != null
+                ? formatPercent(portfolioReturn)
+                : "—"
           }
           tone={
-            portfolio
+            portfolio && portfolioReturn != null
               ? portfolioReturn >= 0
                 ? "gain"
                 : "loss"

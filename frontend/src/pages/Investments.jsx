@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import CsvImportCard from "../components/investments/CsvImportCard";
 import PortfolioTable from "../components/investments/PortfolioTable";
 import TransactionForm from "../components/investments/TransactionForm";
@@ -17,11 +18,36 @@ export default function Investments() {
   const totalInvested = portfolio
     ? Number(portfolio.total_invested)
     : txInvested;
-  const currentValue = Number(portfolio?.current_value || 0);
-  const totalGain = Number(portfolio?.total_gain || 0);
-  const overallReturn = Number(portfolio?.overall_return_pct || 0);
-  const positive = totalGain >= 0;
+  const positionCount = portfolio?.positions?.length ?? 0;
+  const liveTotalsReady =
+    Boolean(portfolio) &&
+    (positionCount === 0 || portfolio.current_value != null);
+  const currentValue =
+    portfolio?.current_value != null ? Number(portfolio.current_value) : null;
+  const totalGain =
+    portfolio?.total_gain != null ? Number(portfolio.total_gain) : null;
+  const overallReturn =
+    portfolio?.overall_return_pct != null
+      ? Number(portfolio.overall_return_pct)
+      : null;
+  const positiveGain = totalGain != null && totalGain >= 0;
   const portfolioUnavailable = !portfolio && transactions.length > 0;
+  const missingLiveHint =
+    portfolio?.unpriced_tickers?.length > 0
+      ? `No live quote for: ${portfolio.unpriced_tickers.join(", ")}. Current value is live price × shares for all holdings — totals appear when every ticker prices.`
+      : portfolio && !liveTotalsReady && positionCount > 0
+        ? "Live market value unavailable for one or more holdings."
+        : null;
+
+  const livePriceByTicker = useMemo(() => {
+    const m = {};
+    for (const p of portfolio?.positions ?? []) {
+      if (p?.ticker != null) {
+        m[String(p.ticker).toUpperCase()] = p.current_price ?? null;
+      }
+    }
+    return m;
+  }, [portfolio?.positions]);
 
   return (
     <>
@@ -48,37 +74,76 @@ export default function Investments() {
         </p>
       )}
 
+      {missingLiveHint && (
+        <p className="text-xs text-amber-200/90 mb-2 -mt-2">{missingLiveHint}</p>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Stat label="Total Invested" value={formatMoney(totalInvested)} />
         <Stat
           label="Current Value"
           value={
-            portfolio ? formatMoney(currentValue) : portfolioUnavailable ? "—" : formatMoney(0)
+            !portfolio
+              ? portfolioUnavailable
+                ? "—"
+                : formatMoney(0)
+              : liveTotalsReady
+                ? formatMoney(currentValue ?? 0)
+                : "—"
           }
         />
         <Stat
           label="Total Gain / Loss"
           value={
-            portfolio
-              ? `${positive ? "+" : ""}${formatMoney(totalGain)}`
-              : portfolioUnavailable
-              ? "—"
-              : `${positive ? "+" : ""}${formatMoney(0)}`
+            !portfolio
+              ? portfolioUnavailable
+                ? "—"
+                : `${positiveGain ? "+" : ""}${formatMoney(0)}`
+              : totalGain != null
+                ? `${positiveGain ? "+" : ""}${formatMoney(totalGain)}`
+                : "—"
           }
-          tone={portfolio ? (positive ? "gain" : "loss") : "neutral"}
+          tone={
+            !portfolio || totalGain == null
+              ? "neutral"
+              : positiveGain
+                ? "gain"
+                : "loss"
+          }
         />
         <Stat
           label="Overall Return"
-          value={portfolio ? formatPercent(overallReturn) : portfolioUnavailable ? "—" : formatPercent(0)}
-          tone={portfolio ? (positive ? "gain" : "loss") : "neutral"}
+          value={
+            !portfolio
+              ? portfolioUnavailable
+                ? "—"
+                : formatPercent(0)
+              : overallReturn != null
+                ? formatPercent(overallReturn)
+                : "—"
+          }
+          tone={
+            !portfolio || overallReturn == null
+              ? "neutral"
+              : overallReturn >= 0
+                ? "gain"
+                : "loss"
+          }
         />
       </div>
 
       <div className="space-y-4">
         <CsvImportCard onImported={refresh} />
         <TransactionForm onCreated={refresh} />
-        <TransactionsTable transactions={transactions} onChanged={refresh} />
-        <PortfolioTable positions={portfolio?.positions || []} />
+        <TransactionsTable
+          transactions={transactions}
+          livePriceByTicker={livePriceByTicker}
+          onChanged={refresh}
+        />
+        <PortfolioTable
+          positions={portfolio?.positions || []}
+          quotesFetchedAt={portfolio?.quotes_fetched_at}
+        />
       </div>
     </>
   );

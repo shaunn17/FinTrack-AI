@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
 from collections import defaultdict
+import os
+import time
 from datetime import date as DateType
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Dict
 
@@ -19,25 +20,25 @@ from ..models.investments import (
     TransactionIn,
 )
 from ..services.investment_csv_import import parse_investment_csv
-from ..services.stock_service import get_current_price
+from ..services.stock_service import get_current_price, invalidate_price_cache
 
 router = APIRouter(prefix="/investments", tags=["investments"])
 
 
 def _batch_prices(tickers: list[str]) -> Dict[str, float | None]:
-    """Fetch live prices in parallel to avoid 30s+ sequential timeouts."""
+    """Fetch live prices one-by-one with a short pause to reduce Yahoo 429 rate limits."""
+
     out: Dict[str, float | None] = {t: None for t in tickers}
     if not tickers:
         return out
-    workers = min(8, len(tickers))
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        future_map = {pool.submit(get_current_price, t): t for t in tickers}
-        for fut in as_completed(future_map):
-            t = future_map[fut]
-            try:
-                out[t] = fut.result()
-            except Exception:
-                out[t] = None
+    stagger = max(0.0, float(os.environ.get("QUOTE_FETCH_STAGGER_SEC", "0.25")))
+    for i, t in enumerate(tickers):
+        if i > 0 and stagger > 0:
+            time.sleep(stagger)
+        try:
+            out[t] = get_current_price(t)
+        except Exception:
+            out[t] = None
     return out
 
 
@@ -62,6 +63,7 @@ def create_transaction(payload: TransactionIn):
     result = supabase.table("investment_transactions").insert(body).execute()
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to create transaction")
+    invalidate_price_cache([str(payload.ticker)])
     return result.data[0]
 
 
@@ -118,6 +120,11 @@ async def import_transactions_csv(
         result = supabase.table("investment_transactions").insert(batch).execute()
         imported += len(result.data or batch)
 
+    if imported > 0:
+        invalidate_price_cache(
+            sorted({str(r["ticker"]).strip().upper() for r in ready})
+        )
+
     return CsvImportResult(
         imported=imported,
         dry_run=False,
@@ -164,10 +171,12 @@ def get_portfolio():
 
     positions: list[PortfolioPosition] = []
     total_invested = Decimal("0")
-    total_value = Decimal("0")
+    sum_market_value = Decimal("0")
+    unpriced: list[str] = []
 
     tickers = list(by_ticker.keys())
     prices = _batch_prices(tickers)
+    quotes_fetched_at = datetime.now(timezone.utc) if tickers else None
 
     for ticker, bucket in by_ticker.items():
         shares: Decimal = bucket["total_shares"]
@@ -188,6 +197,11 @@ def get_portfolio():
             else None
         )
 
+        if current_value is not None:
+            sum_market_value += current_value
+        else:
+            unpriced.append(ticker)
+
         positions.append(
             PortfolioPosition(
                 ticker=ticker,
@@ -203,22 +217,35 @@ def get_portfolio():
         )
 
         total_invested += cost
-        if current_value is not None:
-            total_value += current_value
-        else:
-            total_value += cost  # fall back so summary doesn't lie about losses
 
-    total_gain = total_value - total_invested
-    overall_return = (
-        float((total_gain / total_invested) * 100) if total_invested > 0 else 0.0
-    )
+    live_complete = len(unpriced) == 0 and len(by_ticker) > 0
+    empty = len(by_ticker) == 0
+
+    if empty:
+        portfolio_current_value = Decimal("0")
+        total_gain = Decimal("0")
+        overall_return = 0.0
+    elif live_complete:
+        portfolio_current_value = sum_market_value
+        total_gain = portfolio_current_value - total_invested
+        overall_return = (
+            float((total_gain / total_invested) * 100) if total_invested > 0 else 0.0
+        )
+    else:
+        portfolio_current_value = None
+        total_gain = None
+        overall_return = None
 
     positions.sort(key=lambda p: p.ticker)
 
     return PortfolioSummary(
         total_invested=total_invested,
-        current_value=total_value,
+        current_value=portfolio_current_value,
         total_gain=total_gain,
-        overall_return_pct=round(overall_return, 2),
+        overall_return_pct=round(overall_return, 2)
+        if overall_return is not None
+        else None,
         positions=positions,
+        quotes_fetched_at=quotes_fetched_at,
+        unpriced_tickers=sorted(unpriced),
     )
