@@ -1,6 +1,29 @@
 import axios from "axios";
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+/**
+ * In dev, Vite proxies `/api` → `127.0.0.1:8000`. Using same-origin requests fixes
+ * “Network URL” (e.g. 10.0.0.x:5173) when .env still has VITE_API_BASE_URL=http://localhost:8000
+ * (browser would call localhost on the wrong host).
+ */
+function resolveApiBaseURL() {
+  const raw = (import.meta.env.VITE_API_BASE_URL || "").trim();
+  if (!import.meta.env.DEV) {
+    return raw || "http://localhost:8000";
+  }
+  if (!raw) return "";
+  const u = raw.replace(/\/$/, "");
+  if (
+    u === "http://localhost:8000" ||
+    u === "http://127.0.0.1:8000" ||
+    u === "https://localhost:8000" ||
+    u === "https://127.0.0.1:8000"
+  ) {
+    return "";
+  }
+  return raw;
+}
+
+const baseURL = resolveApiBaseURL();
 
 export const api = axios.create({
   baseURL,
@@ -8,6 +31,15 @@ export const api = axios.create({
   // JSON requests still get application/json when sending plain objects.
   timeout: 30000,
 });
+
+/** For error copy: what the UI is effectively calling. */
+function getApiBaseLabel() {
+  if (baseURL) return baseURL;
+  if (import.meta.env.DEV) {
+    return `${typeof window !== "undefined" ? window.location.origin : ""}/api (Vite → 127.0.0.1:8000)`;
+  }
+  return "(same origin)";
+}
 
 /** Maps axios/FastAPI errors to a single string for UI (incl. “Network Error”). */
 export function getApiErrorMessage(error) {
@@ -25,7 +57,15 @@ export function getApiErrorMessage(error) {
     error.code === "ECONNABORTED" ||
     error.message === "Network Error"
   ) {
-    return `Cannot reach the API at ${baseURL}. Start the FinTrack backend (uvicorn on port 8000), check frontend/.env has VITE_API_BASE_URL=${baseURL}, then refresh this page.`;
+    const hint =
+      import.meta.env.DEV && !baseURL
+        ? " Ensure uvicorn is running on 127.0.0.1:8000 (e.g. --host 127.0.0.1 --port 8000)."
+        : import.meta.env.DEV &&
+            typeof baseURL === "string" &&
+            baseURL.includes("localhost")
+          ? " If you opened the app via a Network URL, use an empty VITE_API_BASE_URL or loopback URL so the dev proxy is used."
+          : "";
+    return `Cannot reach the API at ${getApiBaseLabel()}. Start the FinTrack backend (uvicorn on port 8000), then refresh.${hint}`;
   }
   return error.message || "Request failed.";
 }
@@ -33,11 +73,15 @@ export function getApiErrorMessage(error) {
 // ---------------------------------------------------------------------------
 // Budget
 // ---------------------------------------------------------------------------
-export const upsertIncome = (payload) =>
+/** Append one income line for the month (multiple sources supported). */
+export const addIncome = (payload) =>
   api.post("/api/budget/income", payload).then((r) => r.data);
 
 export const getIncome = (month) =>
   api.get(`/api/budget/income/${month}`).then((r) => r.data);
+
+export const deleteIncomeEntry = (entryId) =>
+  api.delete(`/api/budget/income/${entryId}`).then((r) => r.data);
 
 export const createExpense = (payload) =>
   api.post("/api/budget/expenses", payload).then((r) => r.data);

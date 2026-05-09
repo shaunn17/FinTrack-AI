@@ -88,7 +88,7 @@ export default function Dashboard() {
     };
   }, [month]);
 
-  const monthlyIncome = Number(income?.amount || 0);
+  const monthlyIncome = Number(income?.total_amount ?? income?.amount ?? 0);
   const totalSpent = Number(summary?.total_spent || 0);
   const savings = Number(summary?.savings || 0);
   const txCostBasis = transactions.reduce(

@@ -1,14 +1,18 @@
 -- FinTrack Database Schema
 -- Run this in the Supabase SQL editor to provision all required tables.
 
--- Monthly Income
+-- Monthly Income (multiple rows per month = multiple paychecks / sources)
 CREATE TABLE IF NOT EXISTS monthly_income (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   month DATE NOT NULL,
   amount NUMERIC(12, 2) NOT NULL,
+  source TEXT,
   note TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- If you created this table before `source` existed, run once in Supabase SQL editor:
+-- ALTER TABLE monthly_income ADD COLUMN IF NOT EXISTS source TEXT;
 
 -- Expenses
 CREATE TABLE IF NOT EXISTS expenses (
