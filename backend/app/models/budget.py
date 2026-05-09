@@ -32,15 +32,41 @@ def _validate_category(value: str) -> str:
 
 
 class IncomeIn(BaseModel):
-    """Payload for creating or updating a monthly income entry."""
+    """Payload for adding one income line for a month (appends; does not replace others)."""
 
-    month: DateType = Field(..., description="First day of the month, YYYY-MM-DD")
+    month: DateType = Field(..., description="Any day in the target month; stored as month start")
     amount: Decimal = Field(..., ge=0)
-    note: Optional[str] = None
+    source: Optional[str] = Field(
+        default=None,
+        max_length=120,
+        description="e.g. employer or income stream name",
+    )
+    note: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("source", "note", mode="before")
+    @classmethod
+    def _strip_optional(cls, v):
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s or None
 
 
-class IncomeOut(IncomeIn):
+class IncomeEntryOut(BaseModel):
     id: str
+    month: str
+    amount: Decimal
+    source: Optional[str] = None
+    note: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class IncomeMonthOut(BaseModel):
+    """All income lines for a calendar month plus running total."""
+
+    month: str
+    total_amount: Decimal
+    entries: List[IncomeEntryOut]
 
 
 class ExpenseIn(BaseModel):

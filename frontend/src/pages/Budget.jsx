@@ -10,6 +10,7 @@ import { currentMonthString, formatMoney } from "../styles/theme";
 
 export default function Budget() {
   const [month, setMonth] = useState(currentMonthString());
+  const [incomePanelOpen, setIncomePanelOpen] = useState(false);
   const { income, expenses, caps, summary, loading, refresh } = useBudget(month);
 
   const totalSpent = Number(summary?.total_spent || 0);
@@ -31,8 +32,19 @@ export default function Budget() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-        <IncomeCard month={month} income={income} onSaved={refresh} />
+      <div
+        className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch relative transition-[margin] duration-200 ${
+          incomePanelOpen ? "mb-[min(26rem,55vh)] sm:mb-[min(28rem,50vh)]" : "mb-6"
+        }`}
+      >
+        <div className="min-h-0 h-full lg:min-w-0">
+          <IncomeCard
+            month={month}
+            income={income}
+            onSaved={refresh}
+            onPanelOpenChange={setIncomePanelOpen}
+          />
+        </div>
         <SummaryStat label="Total Spent" value={formatMoney(totalSpent)} />
         <SummaryStat
           label="Savings"
@@ -67,6 +79,8 @@ export default function Budget() {
   );
 }
 
+const STAT_CARD_MIN = "min-h-[8.5rem]";
+
 function SummaryStat({ label, value, tone = "neutral" }) {
   const toneClass =
     tone === "gain"
@@ -75,11 +89,18 @@ function SummaryStat({ label, value, tone = "neutral" }) {
       ? "text-loss"
       : "text-text-primary";
   return (
-    <div className="card p-5">
-      <p className="text-xs uppercase tracking-wide text-text-secondary">
-        {label}
-      </p>
-      <p className={`text-3xl font-semibold mt-1 ${toneClass}`}>{value}</p>
+    <div
+      className={`card p-5 h-full flex flex-col ${STAT_CARD_MIN}`}
+    >
+      <div>
+        <p className="text-xs uppercase tracking-wide text-text-secondary">
+          {label}
+        </p>
+        <p className={`text-3xl font-semibold mt-1 tabular-nums ${toneClass}`}>
+          {value}
+        </p>
+      </div>
+      <div className="mt-auto pt-3 min-h-[2.25rem]" aria-hidden />
     </div>
   );
 }
