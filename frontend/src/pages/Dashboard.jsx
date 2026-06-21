@@ -4,6 +4,12 @@ import HealthScoreCard from "../components/insights/HealthScoreCard";
 import Navbar from "../components/layout/Navbar";
 import Badge from "../components/shared/Badge";
 import Chart from "../components/shared/Chart";
+import EmptyMonthState from "../components/shared/EmptyMonthState";
+import {
+  hasMonthBudgetData,
+  prettyMonth,
+  useMonthYear,
+} from "../context/MonthYearContext";
 import {
   getApiErrorMessage,
   getBudgetSummary,
@@ -13,15 +19,10 @@ import {
   getPortfolio,
   getTransactions,
 } from "../services/api";
-import {
-  currentMonthString,
-  formatDate,
-  formatMoney,
-  formatPercent,
-} from "../styles/theme";
+import { formatDate, formatMoney, formatPercent } from "../styles/theme";
 
 export default function Dashboard() {
-  const month = currentMonthString();
+  const { month } = useMonthYear();
   const [income, setIncome] = useState(null);
   const [summary, setSummary] = useState(null);
   const [expenses, setExpenses] = useState([]);
@@ -111,6 +112,7 @@ export default function Dashboard() {
 
   const recentExpenses = expenses.slice(0, 5);
   const recentTransactions = transactions.slice(0, 5);
+  const hasBudgetData = hasMonthBudgetData({ income, expenses, summary });
 
   return (
     <>
@@ -118,6 +120,8 @@ export default function Dashboard() {
         title="Dashboard"
         subtitle={`Overview for ${prettyMonth(month)}`}
       />
+
+      {!hasBudgetData && <EmptyMonthState month={month} />}
 
       {error && (
         <div className="card p-4 mb-4 text-loss text-sm border-loss/30">
@@ -297,10 +301,4 @@ function Stat({ label, value, tone = "neutral", hint }) {
       )}
     </div>
   );
-}
-
-function prettyMonth(monthString) {
-  const [y, m] = monthString.split("-");
-  const d = new Date(Number(y), Number(m) - 1, 1);
-  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }

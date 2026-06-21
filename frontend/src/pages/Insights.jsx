@@ -3,35 +3,56 @@ import HealthScoreCard from "../components/insights/HealthScoreCard";
 import InsightCard from "../components/insights/InsightCard";
 import Navbar from "../components/layout/Navbar";
 import Button from "../components/shared/Button";
+import EmptyMonthState from "../components/shared/EmptyMonthState";
+import {
+  hasMonthBudgetData,
+  prettyMonth,
+  useMonthYear,
+} from "../context/MonthYearContext";
 import {
   generateHealthScore,
   generateInsight,
   getApiErrorMessage,
+  getBudgetSummary,
+  getExpenses,
   getHealthScore,
+  getIncome,
   getInsight,
 } from "../services/api";
-import { currentMonthString } from "../styles/theme";
 
 export default function Insights() {
-  const [month, setMonth] = useState(currentMonthString());
+  const { month } = useMonthYear();
   const [insight, setInsight] = useState(null);
   const [score, setScore] = useState(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
   const [loadingScore, setLoadingScore] = useState(false);
+  const [loadingBudget, setLoadingBudget] = useState(false);
+  const [hasBudgetData, setHasBudgetData] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    Promise.all([getInsight(month), getHealthScore(month)])
-      .then(([ins, sc]) => {
+    setLoadingBudget(true);
+    Promise.all([
+      getInsight(month),
+      getHealthScore(month),
+      getIncome(month),
+      getExpenses(month),
+      getBudgetSummary(month),
+    ])
+      .then(([ins, sc, inc, exp, sum]) => {
         if (cancelled) return;
         setInsight(ins);
         setScore(sc);
+        setHasBudgetData(hasMonthBudgetData({ income: inc, expenses: exp, summary: sum }));
       })
       .catch((err) => {
         if (cancelled) return;
         setError(getApiErrorMessage(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingBudget(false);
       });
     return () => {
       cancelled = true;
@@ -68,16 +89,10 @@ export default function Insights() {
     <>
       <Navbar
         title="AI Insights"
-        subtitle="Get LLM-powered analysis of your spending and overall financial health."
-        right={
-          <input
-            type="month"
-            className="input w-44"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-          />
-        }
+        subtitle={`LLM-powered analysis of your spending and financial health for ${prettyMonth(month)}.`}
       />
+
+      {!loadingBudget && !hasBudgetData && <EmptyMonthState month={month} />}
 
       {error && (
         <div className="card p-4 mb-4 text-loss text-sm border-loss/30">

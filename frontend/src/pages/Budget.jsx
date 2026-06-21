@@ -5,32 +5,33 @@ import ExpenseForm from "../components/budget/ExpenseForm";
 import ExpenseTable from "../components/budget/ExpenseTable";
 import IncomeCard from "../components/budget/IncomeCard";
 import Navbar from "../components/layout/Navbar";
+import EmptyMonthState from "../components/shared/EmptyMonthState";
+import {
+  hasMonthBudgetData,
+  prettyMonth,
+  useMonthYear,
+} from "../context/MonthYearContext";
 import { useBudget } from "../hooks/useBudget";
-import { currentMonthString, formatMoney } from "../styles/theme";
+import { formatMoney } from "../styles/theme";
 
 export default function Budget() {
-  const [month, setMonth] = useState(currentMonthString());
+  const { month } = useMonthYear();
   const [incomePanelOpen, setIncomePanelOpen] = useState(false);
   const { income, expenses, caps, summary, loading, refresh } = useBudget(month);
 
   const totalSpent = Number(summary?.total_spent || 0);
   const savings = Number(summary?.savings || 0);
   const savingsRate = Number(summary?.savings_rate || 0);
+  const hasBudgetData = hasMonthBudgetData({ income, expenses, summary });
 
   return (
     <>
       <Navbar
         title="Budget & Spending"
-        subtitle="Track income, log expenses, and stay within your category caps."
-        right={
-          <input
-            type="month"
-            className="input w-44"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-          />
-        }
+        subtitle={`Track income, log expenses, and stay within your category caps for ${prettyMonth(month)}.`}
       />
+
+      {!loading && !hasBudgetData && <EmptyMonthState month={month} />}
 
       <div
         className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch relative transition-[margin] duration-200 ${
