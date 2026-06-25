@@ -1,40 +1,87 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import BudgetCapCard from "../components/budget/BudgetCapCard";
 import CategoryBreakdown from "../components/budget/CategoryBreakdown";
 import ExpenseForm from "../components/budget/ExpenseForm";
 import ExpenseTable from "../components/budget/ExpenseTable";
 import IncomeCard from "../components/budget/IncomeCard";
+import StatCard from "../components/dashboard/StatCard";
 import Navbar from "../components/layout/Navbar";
 import EmptyMonthState from "../components/shared/EmptyMonthState";
 import {
+  canComparePrevMonth,
   hasMonthBudgetData,
   prettyMonth,
+  prevMonth,
   useMonthYear,
 } from "../context/MonthYearContext";
 import { useBudget } from "../hooks/useBudget";
+import { getBudgetSummary } from "../services/api";
 import { formatMoney } from "../styles/theme";
+import {
+  formatMomDelta,
+  percentIncomeSpent,
+} from "../utils/dashboardMetrics";
 
 export default function Budget() {
   const { month } = useMonthYear();
   const [incomePanelOpen, setIncomePanelOpen] = useState(false);
-  const { income, expenses, caps, summary, loading, refresh } = useBudget(month);
+  const [prevSummary, setPrevSummary] = useState(null);
+  const { income, expenses, caps, summary, loading, error, refresh } =
+    useBudget(month);
 
+  const comparePrev = canComparePrevMonth(month);
+
+  useEffect(() => {
+    if (!comparePrev) {
+      setPrevSummary(null);
+      return;
+    }
+    let cancelled = false;
+    getBudgetSummary(prevMonth(month))
+      .then((data) => {
+        if (!cancelled) setPrevSummary(data);
+      })
+      .catch(() => {
+        if (!cancelled) setPrevSummary(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [month, comparePrev]);
+
+  const monthlyIncome = Number(income?.total_amount ?? income?.amount ?? 0);
   const totalSpent = Number(summary?.total_spent || 0);
   const savings = Number(summary?.savings || 0);
   const savingsRate = Number(summary?.savings_rate || 0);
+  const pctSpent = percentIncomeSpent(monthlyIncome, totalSpent);
   const hasBudgetData = hasMonthBudgetData({ income, expenses, summary });
+  const incomeSources = income?.entries?.length ?? 0;
+
+  const spentDelta =
+    comparePrev && prevSummary
+      ? formatMomDelta(totalSpent, Number(prevSummary.total_spent || 0), {
+          invertTone: true,
+        })
+      : null;
+  const savingsDelta =
+    comparePrev && prevSummary
+      ? formatMomDelta(savings, Number(prevSummary.savings || 0))
+      : null;
 
   return (
     <>
-      <Navbar
-        title="Budget & Spending"
-        subtitle={`Track income, log expenses, and stay within your category caps for ${prettyMonth(month)}.`}
-      />
+      <Navbar title="Budget" subtitle={prettyMonth(month)} />
 
       {!loading && !hasBudgetData && <EmptyMonthState month={month} />}
 
+      {error && (
+        <div className="card p-4 mb-4 text-loss text-sm border-loss/30">
+          {error}
+        </div>
+      )}
+
       <div
-        className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch relative transition-[margin] duration-200 ${
+        className={`grid grid-cols-2 lg:grid-cols-4 gap-4 items-stretch relative transition-[margin] duration-200 ${
           incomePanelOpen ? "mb-[min(26rem,55vh)] sm:mb-[min(28rem,50vh)]" : "mb-6"
         }`}
       >
@@ -42,66 +89,74 @@ export default function Budget() {
           <IncomeCard
             month={month}
             income={income}
+            loading={loading}
             onSaved={refresh}
             onPanelOpenChange={setIncomePanelOpen}
           />
         </div>
-        <SummaryStat label="Total Spent" value={formatMoney(totalSpent)} />
-        <SummaryStat
+        <StatCard
+          label="Spent"
+          value={formatMoney(totalSpent)}
+          delta={spentDelta}
+          loading={loading}
+        />
+        <StatCard
           label="Savings"
           value={formatMoney(savings)}
           tone={savings >= 0 ? "gain" : "loss"}
+          delta={savingsDelta}
+          loading={loading}
         />
-        <SummaryStat
+        <StatCard
           label="Savings Rate"
           value={`${savingsRate.toFixed(1)}%`}
-          tone={savingsRate >= 20 ? "gain" : savingsRate >= 0 ? "neutral" : "loss"}
+          hint={
+            pctSpent != null
+              ? `${pctSpent.toFixed(0)}% of income spent`
+              : incomeSources > 0
+                ? "Add income to track rate"
+                : undefined
+          }
+          tone={
+            savingsRate >= 20
+              ? "gain"
+              : savingsRate >= 0
+                ? "neutral"
+                : "loss"
+          }
+          loading={loading}
         />
       </div>
 
-      <div className="space-y-4">
+      <section className="space-y-4">
+        <SectionHeading
+          title="Spending"
+          description="Log expenses and review category caps."
+        />
+
         <ExpenseForm onCreated={refresh} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 space-y-4">
-            <ExpenseTable expenses={expenses} onChanged={refresh} />
+          <div className="lg:col-span-2">
+            <ExpenseTable expenses={expenses} loading={loading} onChanged={refresh} />
           </div>
           <div className="space-y-4">
-            <CategoryBreakdown summary={summary} caps={caps} />
+            <CategoryBreakdown summary={summary} caps={caps} loading={loading} />
             <BudgetCapCard month={month} caps={caps} onSaved={refresh} />
           </div>
         </div>
-      </div>
-
-      {loading && (
-        <p className="text-xs text-text-muted mt-4">Refreshing data…</p>
-      )}
+      </section>
     </>
   );
 }
 
-const STAT_CARD_MIN = "min-h-[8.5rem]";
-
-function SummaryStat({ label, value, tone = "neutral" }) {
-  const toneClass =
-    tone === "gain"
-      ? "text-gain"
-      : tone === "loss"
-      ? "text-loss"
-      : "text-text-primary";
+function SectionHeading({ title, description }) {
   return (
-    <div
-      className={`card p-5 h-full flex flex-col ${STAT_CARD_MIN}`}
-    >
-      <div>
-        <p className="text-xs uppercase tracking-wide text-text-secondary">
-          {label}
-        </p>
-        <p className={`text-3xl font-semibold mt-1 tabular-nums ${toneClass}`}>
-          {value}
-        </p>
-      </div>
-      <div className="mt-auto pt-3 min-h-[2.25rem]" aria-hidden />
+    <div>
+      <h2 className="text-base font-semibold text-text-primary">{title}</h2>
+      {description && (
+        <p className="text-xs text-text-secondary mt-0.5">{description}</p>
+      )}
     </div>
   );
 }

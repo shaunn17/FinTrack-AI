@@ -35,15 +35,15 @@ export default function ExpenseForm({ onCreated }) {
   };
 
   return (
-    <form onSubmit={submit} className="card p-5 space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Log Expense</h3>
-      </div>
+    <form onSubmit={submit} className="card p-4">
+      <p className="text-[11px] uppercase tracking-wide text-text-secondary mb-3">
+        Quick log
+      </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div>
-          <label className="label">Date</label>
+          <label className="label text-[11px]">Date</label>
           <input
-            className="input"
+            className="input py-1.5 text-sm"
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
@@ -51,9 +51,9 @@ export default function ExpenseForm({ onCreated }) {
           />
         </div>
         <div>
-          <label className="label">Category</label>
+          <label className="label text-[11px]">Category</label>
           <select
-            className="input"
+            className="input py-1.5 text-sm"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
           >
@@ -65,9 +65,9 @@ export default function ExpenseForm({ onCreated }) {
           </select>
         </div>
         <div>
-          <label className="label">Amount</label>
+          <label className="label text-[11px]">Amount</label>
           <input
-            className="input"
+            className="input py-1.5 text-sm"
             type="number"
             step="0.01"
             min="0"
@@ -78,19 +78,19 @@ export default function ExpenseForm({ onCreated }) {
           />
         </div>
         <div>
-          <label className="label">Note (optional)</label>
+          <label className="label text-[11px]">Note (optional)</label>
           <input
-            className="input"
+            className="input py-1.5 text-sm"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="e.g. Trader Joe's"
           />
         </div>
       </div>
-      <div className="flex justify-end items-center gap-3">
-        {error && <span className="text-loss text-xs">{error}</span>}
-        <Button type="submit" disabled={saving}>
-          {saving ? "Logging…" : "Log Expense"}
+      <div className="flex justify-end items-center gap-3 mt-3 pt-3 border-t border-border/40">
+        {error && <span className="text-loss text-xs mr-auto">{error}</span>}
+        <Button type="submit" size="sm" disabled={saving}>
+          {saving ? "Logging…" : "Log expense"}
         </Button>
       </div>
     </form>
