@@ -16,6 +16,8 @@ from typing import Any, Dict
 
 from dotenv import load_dotenv
 
+from ..utils.category_labels import format_category, humanize_insight_text
+
 load_dotenv()
 
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
@@ -109,7 +111,8 @@ def generate_spending_insights(month_summary: dict) -> str:
 
     if isinstance(breakdown, list):
         category_breakdown = ", ".join(
-            f"{c.get('category')}: ${float(c.get('total', 0)):,.2f}" for c in breakdown
+            f"{format_category(c.get('category', ''))}: ${float(c.get('total', 0)):,.2f}"
+            for c in breakdown
         ) or "no expenses recorded"
     else:
         category_breakdown = str(breakdown)
@@ -124,10 +127,12 @@ def generate_spending_insights(month_summary: dict) -> str:
         "2. One pattern or anomaly you notice\n"
         "3. One comparison to healthy benchmarks (e.g. 50/30/20 rule)\n"
         "4. One specific, actionable suggestion to improve next month\n"
-        "Be direct, specific, and use the actual numbers."
+        "Write in a conversational, natural tone. Refer to spending categories by their "
+        "plain-English names exactly as shown above (never use ALL_CAPS, snake_case, or "
+        "database-style keys). Be direct, specific, and use the actual numbers."
     )
 
-    return _call_llm(prompt).strip()
+    return humanize_insight_text(_call_llm(prompt).strip())
 
 
 def _extract_json(text: str) -> Dict[str, Any]:

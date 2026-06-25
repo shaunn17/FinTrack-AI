@@ -40,21 +40,19 @@ export default function CsvImportCard({ onImported }) {
   };
 
   return (
-    <div className="card p-5 space-y-3">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h3 className="font-semibold">Import from CSV</h3>
-          <p className="text-xs text-text-secondary mt-1 max-w-xl">
-            Columns: <span className="text-text-primary">Date</span> (DD/MM/YYYY),{" "}
-            <span className="text-text-primary">Name</span> (ticker),{" "}
-            <span className="text-text-primary">Buy Price</span>,{" "}
-            <span className="text-text-primary">Quantity</span>,{" "}
-            <span className="text-text-primary">Total Cost</span>. Rows with missing
-            prices are skipped. <span className="text-text-primary">Stock name</span> is set
-            to the ticker (fast import; live portfolio still shows current prices).
+    <div className="card p-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-wide text-text-secondary">
+            CSV format
+          </p>
+          <p className="text-xs text-text-secondary mt-2 leading-relaxed max-w-xl">
+            Columns: Date (DD/MM/YYYY), Name (ticker), Buy Price, Quantity, Total
+            Cost. Rows with missing prices are skipped. Stock name defaults to
+            the ticker.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 shrink-0">
           <input
             ref={inputRef}
             type="file"
@@ -84,23 +82,27 @@ export default function CsvImportCard({ onImported }) {
               inputRef.current?.click();
             }}
           >
-            Preview (dry run)
+            Preview
           </Button>
         </div>
       </div>
-      <p className="text-[11px] text-text-muted">
-        Importing the same file twice will duplicate rows. Use Preview to see how many lines
-        import vs skip before writing to the database.
+
+      <p className="text-[11px] text-text-muted mt-3 pt-3 border-t border-border/40">
+        Re-importing the same file duplicates rows. Use Preview to check skips
+        before writing.
       </p>
+
       {msg && (
-        <p className="text-sm text-accent bg-accent/5 border border-accent/20 rounded-lg px-3 py-2">
+        <p className="text-sm text-accent bg-accent/5 border border-accent/20 rounded-lg px-3 py-2 mt-3">
           {msg}
         </p>
       )}
-      {err && <p className="text-sm text-loss">{err}</p>}
+      {err && <p className="text-sm text-loss mt-3">{err}</p>}
       {skippedPreview && skippedPreview.length > 0 && (
-        <div className="text-xs text-text-secondary border border-border rounded-lg p-3 max-h-40 overflow-y-auto">
-          <p className="font-medium text-text-primary mb-2">Skipped rows (first 15)</p>
+        <div className="text-xs text-text-secondary border border-border/40 rounded-lg p-3 max-h-40 overflow-y-auto mt-3">
+          <p className="font-medium text-text-primary mb-2">
+            Skipped rows (first 15)
+          </p>
           <ul className="space-y-1 font-mono">
             {skippedPreview.map((s, i) => (
               <li key={i}>

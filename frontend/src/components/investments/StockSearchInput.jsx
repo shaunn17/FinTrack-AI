@@ -5,7 +5,12 @@ import { getApiErrorMessage, searchStock } from "../../services/api";
  * Ticker input with on-blur / on-search lookup. When a valid ticker is found,
  * calls ``onResolved({ticker, name, current_price})``.
  */
-export default function StockSearchInput({ value, onChange, onResolved }) {
+export default function StockSearchInput({
+  value,
+  onChange,
+  onResolved,
+  compact = false,
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -28,7 +33,7 @@ export default function StockSearchInput({ value, onChange, onResolved }) {
     <div>
       <div className="flex gap-2">
         <input
-          className="input uppercase"
+          className={`input uppercase ${compact ? "py-1.5 text-sm" : ""}`}
           value={value || ""}
           onChange={(e) => onChange(e.target.value.toUpperCase())}
           onBlur={lookup}
@@ -45,7 +50,9 @@ export default function StockSearchInput({ value, onChange, onResolved }) {
           type="button"
           onClick={lookup}
           disabled={loading || !value}
-          className="px-3 py-2 rounded-lg bg-accent/10 text-accent border border-accent/30 hover:bg-accent/20 disabled:opacity-50 text-xs font-medium"
+          className={`rounded-lg bg-accent/10 text-accent border border-accent/30 hover:bg-accent/20 disabled:opacity-50 text-xs font-medium ${
+            compact ? "px-2 py-1.5" : "px-3 py-2"
+          }`}
         >
           {loading ? "…" : "Lookup"}
         </button>

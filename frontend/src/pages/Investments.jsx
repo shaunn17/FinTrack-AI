@@ -3,13 +3,29 @@ import CsvImportCard from "../components/investments/CsvImportCard";
 import PortfolioTable from "../components/investments/PortfolioTable";
 import TransactionForm from "../components/investments/TransactionForm";
 import TransactionsTable from "../components/investments/TransactionsTable";
+import StatCard from "../components/dashboard/StatCard";
 import Navbar from "../components/layout/Navbar";
 import Button from "../components/shared/Button";
 import { useInvestments } from "../hooks/useInvestments";
 import { formatMoney, formatPercent } from "../styles/theme";
 
+function formatQuotesFetchedAt(iso) {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleString(undefined, {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+  } catch {
+    return null;
+  }
+}
+
 export default function Investments() {
-  const { portfolio, transactions, loading, error, refresh } = useInvestments();
+  const { portfolio, transactions, loading, refreshing, error, refresh } =
+    useInvestments();
 
   const txInvested = transactions.reduce(
     (s, t) => s + Number(t.total_cost || 0),
@@ -30,14 +46,20 @@ export default function Investments() {
     portfolio?.overall_return_pct != null
       ? Number(portfolio.overall_return_pct)
       : null;
-  const positiveGain = totalGain != null && totalGain >= 0;
   const portfolioUnavailable = !portfolio && transactions.length > 0;
-  const missingLiveHint =
+  const quotesLabel = formatQuotesFetchedAt(portfolio?.quotes_fetched_at);
+
+  const unpricedHint =
     portfolio?.unpriced_tickers?.length > 0
-      ? `No live quote for: ${portfolio.unpriced_tickers.join(", ")}. Current value is live price × shares for all holdings — totals appear when every ticker prices.`
+      ? `No live price for: ${portfolio.unpriced_tickers.join(", ")}`
       : portfolio && !liveTotalsReady && positionCount > 0
-        ? "Live market value unavailable for one or more holdings."
+        ? "Live market value unavailable for one or more holdings"
         : null;
+
+  const costBasisHint =
+    portfolioUnavailable && !loading
+      ? "Totals use transaction cost basis until portfolio loads"
+      : null;
 
   const livePriceByTicker = useMemo(() => {
     const m = {};
@@ -49,38 +71,51 @@ export default function Investments() {
     return m;
   }, [portfolio?.positions]);
 
+  const holdingsLabel =
+    positionCount > 0
+      ? `${positionCount} holding${positionCount === 1 ? "" : "s"}`
+      : "No holdings";
+
+  const statsLoading = loading;
+
   return (
     <>
       <Navbar
-        title="Investment Portfolio"
-        subtitle="Log transactions, track live prices, and watch your gains."
+        title="Investments"
+        subtitle="All-time portfolio with live market prices"
         right={
-          <Button variant="secondary" size="sm" onClick={refresh} disabled={loading}>
-            {loading ? "Refreshing…" : "Refresh Prices"}
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={refresh}
+            disabled={loading || refreshing}
+          >
+            {refreshing ? "Refreshing…" : "Refresh prices"}
           </Button>
         }
       />
 
       {error && (
-        <div className="card p-4 mb-4 text-loss text-sm border border-loss/30">
+        <div className="card p-4 mb-4 text-loss text-sm border-loss/30">
           {error}
         </div>
       )}
 
-      {portfolioUnavailable && (
-        <p className="text-xs text-text-secondary mb-2 -mt-2">
-          Totals below use your transaction cost basis. Live value / gain needs the portfolio
-          request to succeed (check the red message above or tap Refresh).
-        </p>
+      {(quotesLabel || unpricedHint || costBasisHint) && (
+        <div className="mb-4 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-text-muted">
+          {quotesLabel && <span>Live prices as of {quotesLabel}</span>}
+          {unpricedHint && <span>{unpricedHint}</span>}
+          {costBasisHint && <span>{costBasisHint}</span>}
+        </div>
       )}
 
-      {missingLiveHint && (
-        <p className="text-xs text-amber-200/90 mb-2 -mt-2">{missingLiveHint}</p>
-      )}
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Stat label="Total Invested" value={formatMoney(totalInvested)} />
-        <Stat
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+        <StatCard
+          label="Total Invested"
+          value={totalInvested > 0 ? formatMoney(totalInvested) : "—"}
+          loading={statsLoading}
+        />
+        <StatCard
           label="Current Value"
           value={
             !portfolio
@@ -91,27 +126,29 @@ export default function Investments() {
                 ? formatMoney(currentValue ?? 0)
                 : "—"
           }
+          loading={statsLoading}
         />
-        <Stat
-          label="Total Gain / Loss"
+        <StatCard
+          label="Total Gain"
           value={
             !portfolio
               ? portfolioUnavailable
                 ? "—"
-                : `${positiveGain ? "+" : ""}${formatMoney(0)}`
+                : formatMoney(0, { withSign: true })
               : totalGain != null
-                ? `${positiveGain ? "+" : ""}${formatMoney(totalGain)}`
+                ? formatMoney(totalGain, { withSign: true })
                 : "—"
           }
           tone={
             !portfolio || totalGain == null
               ? "neutral"
-              : positiveGain
+              : totalGain >= 0
                 ? "gain"
                 : "loss"
           }
+          loading={statsLoading}
         />
-        <Stat
+        <StatCard
           label="Overall Return"
           value={
             !portfolio
@@ -129,41 +166,62 @@ export default function Investments() {
                 ? "gain"
                 : "loss"
           }
+          loading={statsLoading}
+        />
+        <StatCard
+          label="Holdings"
+          value={holdingsLabel}
+          hint={positionCount > 0 ? "Open positions" : undefined}
+          loading={statsLoading}
         />
       </div>
 
-      <div className="space-y-4">
-        <CsvImportCard onImported={refresh} />
-        <TransactionForm onCreated={refresh} />
-        <TransactionsTable
-          transactions={transactions}
-          livePriceByTicker={livePriceByTicker}
-          onChanged={refresh}
-        />
-        <PortfolioTable
-          positions={portfolio?.positions || []}
-          quotesFetchedAt={portfolio?.quotes_fetched_at}
-        />
+      <div className="space-y-8">
+        <section className="space-y-4">
+          <SectionHeading
+            title="Holdings"
+            description="Positions aggregated from your buy transactions."
+          />
+          <PortfolioTable
+            positions={portfolio?.positions || []}
+            quotesFetchedAt={portfolio?.quotes_fetched_at}
+            loading={loading}
+          />
+        </section>
+
+        <section className="space-y-4">
+          <SectionHeading
+            title="Transactions"
+            description="Log a buy or review your full history."
+          />
+          <TransactionForm onCreated={refresh} />
+          <TransactionsTable
+            transactions={transactions}
+            livePriceByTicker={livePriceByTicker}
+            loading={loading}
+            onChanged={refresh}
+          />
+        </section>
+
+        <section className="space-y-4">
+          <SectionHeading
+            title="Import"
+            description="Bulk load transactions from a CSV export."
+          />
+          <CsvImportCard onImported={refresh} />
+        </section>
       </div>
     </>
   );
 }
 
-function Stat({ label, value, tone = "neutral" }) {
-  const toneClass =
-    tone === "gain"
-      ? "text-gain"
-      : tone === "loss"
-      ? "text-loss"
-      : "text-text-primary";
+function SectionHeading({ title, description }) {
   return (
-    <div className="card p-5">
-      <p className="text-xs uppercase tracking-wide text-text-secondary">
-        {label}
-      </p>
-      <p className={`text-2xl sm:text-3xl font-semibold mt-1 ${toneClass}`}>
-        {value}
-      </p>
+    <div>
+      <h2 className="text-base font-semibold text-text-primary">{title}</h2>
+      {description && (
+        <p className="text-xs text-text-secondary mt-0.5">{description}</p>
+      )}
     </div>
   );
 }

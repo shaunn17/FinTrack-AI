@@ -5,6 +5,30 @@ function colorForScore(score) {
   return "#22c55e";
 }
 
+function toneClassForScore(score) {
+  if (score == null) return "text-text-muted";
+  if (score < 40) return "text-loss";
+  if (score <= 70) return "text-amber-400";
+  return "text-gain";
+}
+
+function scoreLabel(score) {
+  if (score == null) return null;
+  if (score >= 70) return "Healthy";
+  if (score >= 40) return "Fair";
+  return "Needs attention";
+}
+
+function colorForMetric(value, max = 25) {
+  const normalized = (Number(value ?? 0) / max) * 100;
+  return colorForScore(normalized);
+}
+
+function toneClassForMetric(value, max = 25) {
+  const normalized = (Number(value ?? 0) / max) * 100;
+  return toneClassForScore(normalized);
+}
+
 function ScoreRing({ score, size = 160 }) {
   const numeric = Number(score ?? 0);
   const radius = (size - 16) / 2;
@@ -39,11 +63,80 @@ function ScoreRing({ score, size = 160 }) {
 }
 
 const ROWS = [
-  { key: "savings_rate", label: "Savings Rate" },
-  { key: "budget_adherence", label: "Budget Adherence" },
-  { key: "expense_volatility", label: "Expense Volatility" },
-  { key: "portfolio_growth", label: "Portfolio Growth" },
+  {
+    key: "savings_rate",
+    label: "Savings Rate",
+    hint: "Share of income left after expenses",
+  },
+  {
+    key: "budget_adherence",
+    label: "Budget Adherence",
+    hint: "How well spending stays within caps",
+  },
+  {
+    key: "expense_volatility",
+    label: "Expense Volatility",
+    hint: "How steady your spending is month to month",
+  },
+  {
+    key: "portfolio_growth",
+    label: "Portfolio Growth",
+    hint: "Investment performance over time",
+  },
 ];
+
+function MetricRow({ label, hint, value, compact = false }) {
+  const v = Number(value ?? 0);
+  const pct = Math.max(0, Math.min(100, (v / 25) * 100));
+  const barColor = colorForMetric(v);
+  const scoreTone = toneClassForMetric(v);
+
+  return (
+    <div className={compact ? "space-y-2" : "space-y-2.5"}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p
+            className={`font-medium text-text-primary ${
+              compact ? "text-xs" : "text-sm"
+            }`}
+          >
+            {label}
+          </p>
+          <p
+            className={`text-text-muted leading-snug mt-0.5 ${
+              compact ? "text-[10px]" : "text-[11px]"
+            }`}
+          >
+            {hint}
+          </p>
+        </div>
+        <span
+          className={`shrink-0 tabular-nums font-semibold ${scoreTone} ${
+            compact ? "text-xs" : "text-sm"
+          }`}
+        >
+          {v.toFixed(1)}
+          <span className="text-text-muted font-normal"> / 25</span>
+        </span>
+      </div>
+      <div
+        className={`w-full bg-bg rounded-full overflow-hidden ${
+          compact ? "h-1" : "h-1.5"
+        }`}
+        role="progressbar"
+        aria-valuenow={v}
+        aria-valuemin={0}
+        aria-valuemax={25}
+        aria-label={label}
+      >
+        <div
+          className="h-full rounded-full transition-all duration-500 ease-out"
+          style={{ width: `${pct}%`, backgroundColor: barColor }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function HealthScoreCard({
   data,
@@ -52,10 +145,13 @@ export default function HealthScoreCard({
   hideTitle = false,
   showBreakdown = false,
   emptyMessage = 'No score yet. Click "Calculate Score" to generate one.',
+  className = "",
 }) {
   if (!data || data.score == null) {
     return (
-      <div className="card p-5 text-text-secondary text-sm text-center">
+      <div
+        className={`card p-6 h-full flex items-center justify-center text-text-secondary text-sm text-center border-dashed border-border/80 ${className}`.trim()}
+      >
         {emptyMessage}
       </div>
     );
@@ -69,85 +165,92 @@ export default function HealthScoreCard({
       ? String(data.breakdown.summary || "")
       : "";
   const score = Number(data.score ?? 0);
-  const color = colorForScore(score);
+  const scoreTone = toneClassForScore(score);
+  const label = scoreLabel(score);
+  const scoreFont = size <= 120 ? "text-2xl" : "text-3xl";
+  const showMetrics = !compact || showBreakdown;
 
   return (
-    <div className="card p-5">
+    <div className={`card p-6 h-full flex flex-col ${className}`.trim()}>
       <div
         className={
           compact
-            ? "flex flex-col items-center text-center gap-4"
-            : "flex flex-col sm:flex-row items-center sm:items-stretch gap-6"
+            ? "flex flex-col items-center text-center gap-4 flex-1"
+            : "flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8 flex-1"
         }
       >
-        <div
-          className="relative flex items-center justify-center shrink-0"
-          style={{ width: size, height: size }}
-        >
-          <ScoreRing score={score} size={size} />
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-3xl font-semibold" style={{ color }}>
-              {Math.round(score)}
-            </span>
-            <span className="text-[11px] text-text-secondary uppercase tracking-wide">
-              / 100
-            </span>
+        <div className="flex flex-col items-center shrink-0 gap-2">
+          <div
+            className="relative flex items-center justify-center"
+            style={{ width: size, height: size }}
+          >
+            <ScoreRing score={score} size={size} />
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className={`${scoreFont} font-semibold tabular-nums ${scoreTone}`}>
+                {Math.round(score)}
+              </span>
+              <span className="text-[10px] text-text-secondary uppercase tracking-wide mt-0.5">
+                / 100
+              </span>
+            </div>
           </div>
-        </div>
-        <div className={compact ? "w-full" : "flex-1 w-full"}>
-          {!hideTitle && (
-            <h3 className="font-semibold mb-1">Financial Health Score</h3>
+          {label && (
+            <span
+              className={`text-xs font-medium uppercase tracking-wide ${scoreTone}`}
+            >
+              {label}
+            </span>
           )}
+        </div>
+
+        <div className={`${compact ? "w-full" : "flex-1 w-full"} min-w-0 flex flex-col`}>
+          {!hideTitle && (
+            <h3 className="font-semibold text-text-primary mb-2">
+              Financial Health Score
+            </h3>
+          )}
+
           {summary && (
-            <p className={`text-sm text-text-secondary ${compact ? "" : "mb-3"}`}>
+            <p
+              className={`text-sm text-text-secondary leading-relaxed ${
+                compact ? "line-clamp-3 text-center" : "mb-5"
+              }`}
+            >
               {summary}
             </p>
           )}
-          {!compact && (
-            <table className="w-full text-sm">
-              <tbody>
-                {ROWS.map(({ key, label }) => {
-                  const v = Number(breakdown?.[key] ?? 0);
-                  return (
-                    <tr key={key} className="border-b border-border/50 last:border-b-0">
-                      <td className="py-2 text-text-secondary">{label}</td>
-                      <td className="py-2 text-right">
-                        <div className="inline-flex items-center gap-2">
-                          <div className="h-1.5 w-24 bg-bg rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${(v / 25) * 100}%`,
-                                backgroundColor: color,
-                              }}
-                            />
-                          </div>
-                          <span className="font-medium tabular-nums w-12 text-right">
-                            {v.toFixed(1)} <span className="text-text-muted">/ 25</span>
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-          {compact && showBreakdown && (
-            <ul className="mt-1 space-y-1.5 text-xs text-left">
-              {ROWS.map(({ key, label }) => {
-                const v = Number(breakdown?.[key] ?? 0);
-                return (
-                  <li key={key} className="flex items-center justify-between gap-2">
-                    <span className="text-text-secondary truncate">{label}</span>
-                    <span className="font-medium tabular-nums shrink-0">
-                      {v.toFixed(1)}
-                      <span className="text-text-muted font-normal"> / 25</span>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+
+          {showMetrics && (
+            <div
+              className={`${
+                compact
+                  ? "w-full pt-4 mt-1 border-t border-border/60"
+                  : summary
+                    ? ""
+                    : "sm:pt-1"
+              }`}
+            >
+              <p
+                className={`uppercase tracking-wide text-text-secondary font-medium ${
+                  compact
+                    ? "text-[10px] mb-3 text-center"
+                    : "text-[11px] mb-4"
+                }`}
+              >
+                Score breakdown
+              </p>
+              <div className={compact ? "space-y-3.5" : "space-y-4"}>
+                {ROWS.map(({ key, label: rowLabel, hint }) => (
+                  <MetricRow
+                    key={key}
+                    label={rowLabel}
+                    hint={hint}
+                    value={breakdown?.[key]}
+                    compact={compact}
+                  />
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>

@@ -23,8 +23,6 @@ export default function TransactionForm({ onCreated }) {
   }, [buyPrice, quantity]);
 
   // FUTURE SCOPE: voice-to-text entry
-  // "Add my investment in NVIDIA for $500 with 2 shares at $250 on April 1st"
-  // would auto-populate every field below.
   useEffect(() => {}, []);
 
   const handleResolved = (info) => {
@@ -65,18 +63,15 @@ export default function TransactionForm({ onCreated }) {
   };
 
   return (
-    <form onSubmit={submit} className="card p-5 space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Log Transaction</h3>
-        <span className="text-[11px] text-text-muted">
-          Tab out of ticker to auto-fetch name & price
-        </span>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+    <form onSubmit={submit} className="card p-4">
+      <p className="text-[11px] uppercase tracking-wide text-text-secondary mb-3">
+        Quick log
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div>
-          <label className="label">Date</label>
+          <label className="label text-[11px]">Date</label>
           <input
-            className="input"
+            className="input py-1.5 text-sm"
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
@@ -84,27 +79,28 @@ export default function TransactionForm({ onCreated }) {
           />
         </div>
         <div>
-          <label className="label">Ticker</label>
+          <label className="label text-[11px]">Ticker</label>
           <StockSearchInput
             value={ticker}
             onChange={setTicker}
             onResolved={handleResolved}
+            compact
           />
         </div>
-        <div className="lg:col-span-2">
-          <label className="label">Stock Name</label>
+        <div className="sm:col-span-2 lg:col-span-1">
+          <label className="label text-[11px]">Stock name</label>
           <input
-            className="input"
+            className="input py-1.5 text-sm"
             value={stockName}
             onChange={(e) => setStockName(e.target.value)}
-            placeholder="Auto-filled"
+            placeholder="Auto-filled from lookup"
             required
           />
         </div>
         <div>
-          <label className="label">Buy Price</label>
+          <label className="label text-[11px]">Buy price</label>
           <input
-            className="input"
+            className="input py-1.5 text-sm"
             type="number"
             step="0.0001"
             min="0"
@@ -115,9 +111,9 @@ export default function TransactionForm({ onCreated }) {
           />
         </div>
         <div>
-          <label className="label">Ask Price</label>
+          <label className="label text-[11px]">Ask price (optional)</label>
           <input
-            className="input"
+            className="input py-1.5 text-sm"
             type="number"
             step="0.0001"
             min="0"
@@ -127,22 +123,22 @@ export default function TransactionForm({ onCreated }) {
           />
         </div>
         <div>
-          <label className="label">Quantity</label>
+          <label className="label text-[11px]">Quantity</label>
           <input
-            className="input"
+            className="input py-1.5 text-sm"
             type="number"
             step="0.000001"
             min="0"
             required
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
-            placeholder="0.0"
+            placeholder="0"
           />
         </div>
         <div>
-          <label className="label">Total Cost</label>
+          <label className="label text-[11px]">Total cost</label>
           <input
-            className="input bg-surface-2"
+            className="input py-1.5 text-sm bg-surface-2 tabular-nums"
             value={totalCost ? `$${totalCost}` : ""}
             readOnly
             placeholder="Auto"
@@ -150,10 +146,13 @@ export default function TransactionForm({ onCreated }) {
         </div>
       </div>
 
-      <div className="flex justify-end items-center gap-3">
-        {error && <span className="text-loss text-xs">{error}</span>}
-        <Button type="submit" disabled={saving}>
-          {saving ? "Logging…" : "Log Transaction"}
+      <div className="flex justify-end items-center gap-3 mt-3 pt-3 border-t border-border/40">
+        <span className="text-[11px] text-text-muted mr-auto hidden sm:inline">
+          Tab out of ticker to fetch name and price
+        </span>
+        {error && <span className="text-loss text-xs mr-auto sm:mr-0">{error}</span>}
+        <Button type="submit" size="sm" disabled={saving}>
+          {saving ? "Logging…" : "Log transaction"}
         </Button>
       </div>
     </form>

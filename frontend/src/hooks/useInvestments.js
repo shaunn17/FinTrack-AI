@@ -4,11 +4,13 @@ import { getPortfolio, getTransactions, getApiErrorMessage } from "../services/a
 export function useInvestments() {
   const [transactions, setTransactions] = useState([]);
   const [portfolio, setPortfolio] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
+    else setLoading(true);
     setError(null);
     const errs = [];
     try {
@@ -27,11 +29,19 @@ export function useInvestments() {
     }
     setError(errs.length > 0 ? errs.join(" · ") : null);
     setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => {
-    refresh();
+    refresh(false);
   }, [refresh]);
 
-  return { transactions, portfolio, loading, error, refresh };
+  return {
+    transactions,
+    portfolio,
+    loading,
+    refreshing,
+    error,
+    refresh: () => refresh(true),
+  };
 }
