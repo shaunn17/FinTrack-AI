@@ -34,6 +34,19 @@ fintrack/
 
 ---
 
+## Local development
+
+After [backend](#2-backend) and [frontend](#3-frontend) setup, start both servers in one terminal:
+
+```bash
+chmod +x dev.sh   # once
+./dev.sh
+```
+
+Preflight checks warn about missing `.env` files, dependencies, or ports already in use. Use `./dev.sh --force` to start when ports are busy.
+
+---
+
 ## 1. Supabase setup
 
 1. Create a new project at [supabase.com](https://supabase.com).

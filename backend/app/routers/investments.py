@@ -31,7 +31,7 @@ def _batch_prices(tickers: list[str]) -> Dict[str, float | None]:
     out: Dict[str, float | None] = {t: None for t in tickers}
     if not tickers:
         return out
-    stagger = max(0.0, float(os.environ.get("QUOTE_FETCH_STAGGER_SEC", "0.25")))
+    stagger = max(0.0, float(os.environ.get("QUOTE_FETCH_STAGGER_SEC", "0.05")))
     for i, t in enumerate(tickers):
         if i > 0 and stagger > 0:
             time.sleep(stagger)

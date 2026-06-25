@@ -45,11 +45,18 @@ const ROWS = [
   { key: "portfolio_growth", label: "Portfolio Growth" },
 ];
 
-export default function HealthScoreCard({ data, size = 160, compact = false }) {
+export default function HealthScoreCard({
+  data,
+  size = 160,
+  compact = false,
+  hideTitle = false,
+  showBreakdown = false,
+  emptyMessage = 'No score yet. Click "Calculate Score" to generate one.',
+}) {
   if (!data || data.score == null) {
     return (
-      <div className="card p-5 text-text-secondary text-sm">
-        No score yet. Click "Calculate Score" to generate one.
+      <div className="card p-5 text-text-secondary text-sm text-center">
+        {emptyMessage}
       </div>
     );
   }
@@ -66,8 +73,17 @@ export default function HealthScoreCard({ data, size = 160, compact = false }) {
 
   return (
     <div className="card p-5">
-      <div className="flex flex-col sm:flex-row items-center sm:items-stretch gap-6">
-        <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <div
+        className={
+          compact
+            ? "flex flex-col items-center text-center gap-4"
+            : "flex flex-col sm:flex-row items-center sm:items-stretch gap-6"
+        }
+      >
+        <div
+          className="relative flex items-center justify-center shrink-0"
+          style={{ width: size, height: size }}
+        >
           <ScoreRing score={score} size={size} />
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-3xl font-semibold" style={{ color }}>
@@ -78,10 +94,14 @@ export default function HealthScoreCard({ data, size = 160, compact = false }) {
             </span>
           </div>
         </div>
-        <div className="flex-1 w-full">
-          <h3 className="font-semibold mb-1">Financial Health Score</h3>
+        <div className={compact ? "w-full" : "flex-1 w-full"}>
+          {!hideTitle && (
+            <h3 className="font-semibold mb-1">Financial Health Score</h3>
+          )}
           {summary && (
-            <p className="text-sm text-text-secondary mb-3">{summary}</p>
+            <p className={`text-sm text-text-secondary ${compact ? "" : "mb-3"}`}>
+              {summary}
+            </p>
           )}
           {!compact && (
             <table className="w-full text-sm">
@@ -112,6 +132,22 @@ export default function HealthScoreCard({ data, size = 160, compact = false }) {
                 })}
               </tbody>
             </table>
+          )}
+          {compact && showBreakdown && (
+            <ul className="mt-1 space-y-1.5 text-xs text-left">
+              {ROWS.map(({ key, label }) => {
+                const v = Number(breakdown?.[key] ?? 0);
+                return (
+                  <li key={key} className="flex items-center justify-between gap-2">
+                    <span className="text-text-secondary truncate">{label}</span>
+                    <span className="font-medium tabular-nums shrink-0">
+                      {v.toFixed(1)}
+                      <span className="text-text-muted font-normal"> / 25</span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       </div>
