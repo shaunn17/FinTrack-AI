@@ -153,3 +153,14 @@ export const generateHealthScore = (month) =>
 
 export const getHealthScore = (month) =>
   api.get(`/api/insights/health-score/${month}`).then((r) => r.data);
+
+// ---------------------------------------------------------------------------
+// Ask FinTrack chat
+// ---------------------------------------------------------------------------
+/** @param {string} message
+ *  @param {{ role: 'user'|'assistant', content: string }[]} [history]
+ */
+export const sendChatMessage = (message, history = []) =>
+  api
+    .post("/api/chat", { message, history }, { timeout: 120000 })
+    .then((r) => r.data);

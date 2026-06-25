@@ -5,6 +5,7 @@ const NAV = [
   { to: "/budget", label: "Budget", icon: BudgetIcon },
   { to: "/investments", label: "Investments", icon: InvestmentsIcon },
   { to: "/insights", label: "Insights", icon: InsightsIcon },
+  { to: "/ask", label: "Ask FinTrack", icon: AskIcon },
 ];
 
 export default function Sidebar() {
@@ -42,7 +43,7 @@ export default function Sidebar() {
 
       {/* Mobile bottom nav */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 bg-surface border-t border-border z-40">
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {NAV.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -111,6 +112,18 @@ function InsightsIcon(props) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
       <path d="M12 3a7 7 0 00-4 12.74V18a2 2 0 002 2h4a2 2 0 002-2v-2.26A7 7 0 0012 3z" />
       <path d="M9 22h6" strokeLinecap="round" />
+    </svg>
+  );
+}
+function AskIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path
+        d="M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4v8z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M9 10h6M9 14h4" strokeLinecap="round" />
     </svg>
   );
 }

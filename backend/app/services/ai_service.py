@@ -28,7 +28,12 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 # Provider plumbing (Groq active; Anthropic commented out)
 # ---------------------------------------------------------------------------
 
-def _call_groq(prompt: str, *, json_mode: bool = False) -> str:
+def _call_groq_messages(
+    messages: list[dict[str, str]],
+    *,
+    json_mode: bool = False,
+    max_tokens: int = 800,
+) -> str:
     from groq import Groq
 
     api_key = os.getenv("GROQ_API_KEY")
@@ -38,9 +43,9 @@ def _call_groq(prompt: str, *, json_mode: bool = False) -> str:
     client = Groq(api_key=api_key)
     kwargs: Dict[str, Any] = {
         "model": GROQ_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages,
         "temperature": 0.4,
-        "max_tokens": 800,
+        "max_tokens": max_tokens,
     }
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
@@ -56,6 +61,13 @@ def _call_groq(prompt: str, *, json_mode: bool = False) -> str:
                 f"(see https://console.groq.com/docs/models ). Current default is {GROQ_MODEL}."
             ) from e
         raise
+
+
+def _call_groq(prompt: str, *, json_mode: bool = False) -> str:
+    return _call_groq_messages(
+        [{"role": "user", "content": prompt}],
+        json_mode=json_mode,
+    )
 
 
 # def _call_anthropic(prompt: str, *, json_mode: bool = False) -> str:
@@ -194,3 +206,37 @@ def generate_health_score(month_summary: dict, portfolio_summary: dict) -> dict:
         "summary": str(data.get("summary", "")),
     }
     return cleaned
+
+
+def generate_chat_reply(
+    user_message: str,
+    financial_context: str,
+    history: list[dict[str, str]] | None = None,
+) -> str:
+    """Multi-turn chat about the user's FinTrack data (context-only answers)."""
+
+    system = (
+        "You are Ask FinTrack, a conversational personal finance assistant for one user's "
+        "FinTrack app. Answer ONLY from the financial data snapshot below — do not invent "
+        "numbers or assume data you were not given.\n"
+        "Use plain, friendly language. Refer to spending categories by their human-readable "
+        "names (never snake_case, ALL_CAPS keys, or database field names).\n"
+        "When citing money, use $ with commas (e.g. $1,234.56). Dates in the data are ISO "
+        "(YYYY-MM-DD); you may phrase them naturally (e.g. 'May 2026', 'last week').\n"
+        "If the user asks about a period or detail not in the snapshot, say what you do and "
+        "do not have — do not guess.\n"
+        "Keep answers focused and reasonably concise unless the user asks for detail.\n\n"
+        "--- User's FinTrack data snapshot ---\n"
+        f"{financial_context}"
+    )
+
+    messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+    for turn in (history or [])[-10:]:
+        role = turn.get("role", "")
+        content = (turn.get("content") or "").strip()
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": user_message.strip()})
+
+    reply = _call_groq_messages(messages, max_tokens=1024).strip()
+    return humanize_insight_text(reply)

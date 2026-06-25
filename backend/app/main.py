@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import budget, insights, investments, stocks
+from .routers import budget, chat, insights, investments, stocks
 
 app = FastAPI(
     title="FinTrack API",
@@ -32,6 +32,7 @@ app.include_router(budget.router, prefix="/api")
 app.include_router(investments.router, prefix="/api")
 app.include_router(stocks.router, prefix="/api")
 app.include_router(insights.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
 
 
 # ---------------------------------------------------------------------------

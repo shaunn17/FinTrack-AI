@@ -6,6 +6,7 @@ import Budget from "./pages/Budget";
 import Dashboard from "./pages/Dashboard";
 import Insights from "./pages/Insights";
 import Investments from "./pages/Investments";
+import AskFinTrack from "./pages/AskFinTrack";
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
             <Route path="/budget" element={<Budget />} />
             <Route path="/investments" element={<Investments />} />
             <Route path="/insights" element={<Insights />} />
+            <Route path="/ask" element={<AskFinTrack />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </PageWrapper>
