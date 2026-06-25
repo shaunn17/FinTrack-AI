@@ -1,12 +1,9 @@
+import { parseInsightBullets } from "../../utils/insightText";
+
 export default function InsightCard({ text, generatedAt, hideTitle = false }) {
   if (!text) return null;
 
-  const bullets = text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((l) => l.replace(/^([-*•]|\d+[\.\)])\s*/, ""))
-    .filter((l) => l.length > 0);
+  const bullets = parseInsightBullets(text);
 
   return (
     <div className="card p-5">

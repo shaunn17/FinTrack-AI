@@ -54,6 +54,16 @@ export function prettyMonth(monthString) {
   return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
+export function prevMonth(monthStr) {
+  const { year, month } = parseMonthString(monthStr);
+  if (month === 1) return toMonthString(year - 1, 12);
+  return toMonthString(year, month - 1);
+}
+
+export function canComparePrevMonth(monthStr) {
+  return isMonthSelectable(prevMonth(monthStr));
+}
+
 export function hasMonthBudgetData({ income, expenses, summary } = {}) {
   const incomeTotal = Number(income?.total_amount ?? income?.amount ?? 0);
   const hasIncomeEntries = (income?.entries?.length ?? 0) > 0;
