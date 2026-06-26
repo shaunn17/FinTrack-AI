@@ -1,0 +1,28 @@
+# Render Blueprint — import at https://dashboard.render.com/blueprints
+# Or create a Web Service manually with the same settings (see README §4).
+services:
+  - type: web
+    name: fintrack-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.2"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      # Optional:
+      # - key: GROQ_MODEL
+      #   sync: false
+      # - key: ANTHROPIC_API_KEY
+      #   sync: false
+      # - key: QUOTE_CACHE_TTL_SECONDS
+      #   value: "90"
+      # - key: QUOTE_FETCH_STAGGER_SEC
+      #   value: "0.25"
