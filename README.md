@@ -176,12 +176,12 @@ The blueprint sets `plan: free` so you are not billed for the web service. If Bl
 1. **New → Web Service** → connect the GitHub repo.
 2. Root directory: `backend/`. Runtime: **Python 3**.
 3. Instance type: **Free** (not Starter).
-4. Build: `pip install -r requirements.txt`
+4. Build: `pip install --upgrade pip && pip install -r requirements.txt`
 5. Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 6. Health check path: `/health`
 7. Environment variables: `SUPABASE_URL`, `SUPABASE_KEY`, `GROQ_API_KEY` (plus `ANTHROPIC_API_KEY` only if you re-enable Claude in code).
 
-Python version is pinned in `backend/runtime.txt` (`python-3.13.2`).
+Python version is pinned via `backend/.python-version` (`3.13`) and `PYTHON_VERSION` in `render.yaml`. Render does **not** read Heroku-style `runtime.txt`.
 
 > **Free tier:** the API sleeps after ~15 minutes of inactivity; the first request after that may take 30–60s (cold start).
 

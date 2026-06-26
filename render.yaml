@@ -9,10 +9,14 @@ services:
     runtime: python
     plan: free
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
+    # Upgrade pip first; pinned deps (e.g. pydantic-core) lack Python 3.14 wheels.
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
+      # Render ignores Heroku-style runtime.txt; pin Python explicitly (default is 3.14.3).
+      - key: PYTHON_VERSION
+        value: "3.13.5"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
