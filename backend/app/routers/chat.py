@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import calendar
-from datetime import date as DateType, timedelta
+import logging
+from datetime import date as DateType
 from typing import List, Literal
 
 from fastapi import APIRouter, HTTPException
+from postgrest.exceptions import APIError
 from pydantic import BaseModel, Field
 
 from ..db.database import supabase
@@ -16,11 +18,11 @@ from ..services.ai_service import generate_chat_reply
 from ..utils.category_labels import format_category
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+logger = logging.getLogger(__name__)
 
 MIN_DATA_YEAR = 2026
 MIN_DATA_MONTH = 5
 CONTEXT_MONTHS = 6
-RECENT_EXPENSE_DAYS = 90
 RECENT_EXPENSE_LIMIT = 100
 MAX_INVESTMENT_TX_DISPLAY = 50
 
@@ -68,6 +70,47 @@ def _money(val) -> str:
         return "$0.00"
 
 
+def _pg_error_text(exc: APIError) -> str:
+    parts = [exc.message or "", exc.details or "", exc.hint or ""]
+    return " ".join(p for p in parts if p).strip().lower()
+
+
+def _month_bounds(months: list[str]) -> tuple[str, str]:
+    """Inclusive ISO date range covering all months in the list."""
+    start_bound = f"{months[0]}-01"
+    last_y, last_m = map(int, months[-1].split("-"))
+    last_day = calendar.monthrange(last_y, last_m)[1]
+    end_bound = DateType(last_y, last_m, last_day).isoformat()
+    return start_bound, end_bound
+
+
+def _fetch_income_rows(start_bound: str, end_bound: str) -> list[dict]:
+    """Load income lines; tolerate DBs without the optional `source` column."""
+
+    def query(cols: str):
+        return (
+            supabase.table("monthly_income")
+            .select(cols)
+            .gte("month", start_bound)
+            .lte("month", end_bound)
+            .order("month", desc=True)
+            .execute()
+        )
+
+    try:
+        resp = query("month, amount, source, note")
+        return resp.data or []
+    except APIError as exc:
+        detail = _pg_error_text(exc)
+        if "source" in detail or "42703" in detail or "column" in detail:
+            logger.warning(
+                "monthly_income.source column missing; loading income without source"
+            )
+            resp = query("month, amount, note")
+            return resp.data or []
+        raise
+
+
 def _format_category_breakdown(breakdown: list) -> str:
     if not breakdown:
         return "  (no expenses)"
@@ -102,7 +145,8 @@ def _build_financial_context() -> str:
                 f"  Savings: {_money(summary.savings)} ({float(summary.savings_rate):.1f}% of income)\n"
                 f"  By category:\n{_format_category_breakdown(summary.category_breakdown)}"
             )
-        except Exception:
+        except Exception as exc:
+            logger.exception("Budget summary failed for %s", month)
             budget_lines.append(f"{month}: (summary unavailable)")
     sections.append(
         "MONTHLY BUDGET SUMMARIES (income, spending, savings, categories):\n"
@@ -111,84 +155,87 @@ def _build_financial_context() -> str:
 
     # Monthly income line items
     if months:
-        start_bound = f"{months[0]}-01"
-        last_y, last_m = map(int, months[-1].split("-"))
-        last_day = calendar.monthrange(last_y, last_m)[1]
-        end_bound = DateType(last_y, last_m, last_day).isoformat()
-        income_resp = (
-            supabase.table("monthly_income")
-            .select("month, amount, source, note")
-            .gte("month", start_bound)
-            .lte("month", end_bound)
-            .order("month", desc=True)
-            .execute()
-        )
-        income_rows = income_resp.data or []
-        if income_rows:
-            inc_lines = []
-            for row in income_rows:
-                src = row.get("source") or "Income"
-                note = row.get("note")
-                extra = f" — {note}" if note else ""
-                inc_lines.append(
-                    f"  {row.get('month')}: {_money(row.get('amount'))} ({src}{extra})"
-                )
-            sections.append("MONTHLY INCOME ENTRIES:\n" + "\n".join(inc_lines))
-        else:
-            sections.append("MONTHLY INCOME ENTRIES: (none recorded)")
+        try:
+            start_bound, end_bound = _month_bounds(months)
+            income_rows = _fetch_income_rows(start_bound, end_bound)
+            if income_rows:
+                inc_lines = []
+                for row in income_rows:
+                    src = row.get("source") or "Income"
+                    note = row.get("note")
+                    extra = f" — {note}" if note else ""
+                    inc_lines.append(
+                        f"  {row.get('month')}: {_money(row.get('amount'))} ({src}{extra})"
+                    )
+                sections.append("MONTHLY INCOME ENTRIES:\n" + "\n".join(inc_lines))
+            else:
+                sections.append("MONTHLY INCOME ENTRIES: (none recorded)")
+        except Exception:
+            logger.exception("Failed to load income entries for chat context")
+            sections.append("MONTHLY INCOME ENTRIES: (not loaded)")
 
-    # Recent expenses
-    cutoff = (today - timedelta(days=RECENT_EXPENSE_DAYS)).isoformat()
-    exp_resp = (
-        supabase.table("expenses")
-        .select("date, category, amount, description")
-        .gte("date", cutoff)
-        .order("date", desc=True)
-        .limit(RECENT_EXPENSE_LIMIT)
-        .execute()
-    )
-    expenses = exp_resp.data or []
-    if expenses:
-        exp_lines = []
-        for row in expenses:
-            desc = row.get("description") or ""
-            desc_bit = f" — {desc}" if desc else ""
-            exp_lines.append(
-                f"  {row.get('date')}: {format_category(row.get('category', ''))} "
-                f"{_money(row.get('amount'))}{desc_bit}"
+    # Expenses in context months (line items for month/week/day questions)
+    if months:
+        try:
+            range_start, range_end = _month_bounds(months)
+            exp_resp = (
+                supabase.table("expenses")
+                .select("date, category, amount, note")
+                .gte("date", range_start)
+                .lte("date", range_end)
+                .order("date", desc=True)
+                .limit(RECENT_EXPENSE_LIMIT)
+                .execute()
             )
-        sections.append(
-            f"RECENT EXPENSES (last {RECENT_EXPENSE_DAYS} days, up to {RECENT_EXPENSE_LIMIT} entries):\n"
-            + "\n".join(exp_lines)
-        )
-    else:
-        sections.append(
-            f"RECENT EXPENSES (last {RECENT_EXPENSE_DAYS} days): (none recorded)"
-        )
+            expenses = exp_resp.data or []
+            if expenses:
+                exp_lines = []
+                for row in expenses:
+                    note = row.get("note") or ""
+                    note_bit = f" — {note}" if note else ""
+                    exp_lines.append(
+                        f"  {row.get('date')}: {format_category(row.get('category', ''))} "
+                        f"{_money(row.get('amount'))}{note_bit}"
+                    )
+                sections.append(
+                    f"EXPENSE LINE ITEMS ({months[0]} through {months[-1]}, "
+                    f"up to {RECENT_EXPENSE_LIMIT} entries):\n" + "\n".join(exp_lines)
+                )
+            else:
+                sections.append(
+                    f"EXPENSE LINE ITEMS ({months[0]} through {months[-1]}): (none recorded)"
+                )
+        except Exception:
+            logger.exception("Failed to load expenses for chat context")
+            sections.append("EXPENSE LINE ITEMS: (not loaded)")
 
     # Investment transactions
-    tx_resp = (
-        supabase.table("investment_transactions")
-        .select("date, ticker, stock_name, quantity, buy_price, total_cost")
-        .order("date", desc=True)
-        .limit(MAX_INVESTMENT_TX_DISPLAY)
-        .execute()
-    )
-    txs = tx_resp.data or []
-    if txs:
-        tx_lines = []
-        for row in txs:
-            name = row.get("stock_name") or row.get("ticker")
-            tx_lines.append(
-                f"  {row.get('date')}: {row.get('ticker')} ({name}) "
-                f"qty {row.get('quantity')} @ {_money(row.get('buy_price'))} "
-                f"total {_money(row.get('total_cost'))}"
-            )
-        sections.append(
-            f"INVESTMENT TRANSACTIONS (most recent {len(txs)}):\n" + "\n".join(tx_lines)
+    try:
+        tx_resp = (
+            supabase.table("investment_transactions")
+            .select("date, ticker, stock_name, quantity, buy_price, total_cost")
+            .order("date", desc=True)
+            .limit(MAX_INVESTMENT_TX_DISPLAY)
+            .execute()
         )
-    else:
-        sections.append("INVESTMENT TRANSACTIONS: (none recorded)")
+        txs = tx_resp.data or []
+        if txs:
+            tx_lines = []
+            for row in txs:
+                name = row.get("stock_name") or row.get("ticker")
+                tx_lines.append(
+                    f"  {row.get('date')}: {row.get('ticker')} ({name}) "
+                    f"qty {row.get('quantity')} @ {_money(row.get('buy_price'))} "
+                    f"total {_money(row.get('total_cost'))}"
+                )
+            sections.append(
+                f"INVESTMENT TRANSACTIONS (most recent {len(txs)}):\n" + "\n".join(tx_lines)
+            )
+        else:
+            sections.append("INVESTMENT TRANSACTIONS: (none recorded)")
+    except Exception:
+        logger.exception("Failed to load investment transactions for chat context")
+        sections.append("INVESTMENT TRANSACTIONS: (not loaded)")
 
     # Portfolio summary
     try:
@@ -226,8 +273,9 @@ def _build_financial_context() -> str:
             + ("\n".join(pos_lines) if pos_lines else "  (no positions)")
             + unpriced_note
         )
-    except Exception as exc:
-        sections.append(f"PORTFOLIO SUMMARY: (unavailable — {exc})")
+    except Exception:
+        logger.exception("Failed to load portfolio for chat context")
+        sections.append("PORTFOLIO SUMMARY: (not loaded)")
 
     return "\n\n".join(sections)
 
@@ -238,10 +286,7 @@ def chat(request: ChatRequest):
     if not message:
         raise HTTPException(status_code=400, detail="message is required")
 
-    try:
-        context = _build_financial_context()
-    except Exception as exc:
-        context = f"(Limited context — error loading data: {exc})"
+    context = _build_financial_context()
 
     history = [{"role": t.role, "content": t.content} for t in request.history[-10:]]
 

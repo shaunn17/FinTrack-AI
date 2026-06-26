@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { useSidebar } from "../../context/SidebarContext";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: DashboardIcon },
@@ -9,34 +10,91 @@ const NAV = [
 ];
 
 export default function Sidebar() {
+  const { collapsed, toggleCollapsed } = useSidebar();
+
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex fixed top-0 left-0 h-screen w-60 flex-col bg-surface border-r border-border z-40">
-        <div className="px-6 py-5 flex items-center gap-2 border-b border-border">
-          <LogoMark />
-          <span className="text-lg font-semibold tracking-tight">FinTrack</span>
+      <aside
+        className={`hidden md:flex fixed top-0 left-0 h-screen flex-col bg-surface border-r border-border z-40 transition-all duration-200 overflow-hidden ${
+          collapsed ? "w-[4.5rem]" : "w-60"
+        }`}
+      >
+        <div
+          className={`relative flex items-center border-b border-border ${
+            collapsed ? "justify-center px-2 py-4" : "px-4 py-5 gap-2"
+          }`}
+        >
+          <div
+            className={`flex items-center min-w-0 ${
+              collapsed ? "justify-center" : "gap-2 flex-1"
+            }`}
+          >
+            <LogoMark />
+            <span
+              className={`text-lg font-semibold tracking-tight whitespace-nowrap transition-opacity duration-200 ${
+                collapsed ? "w-0 opacity-0 overflow-hidden" : "opacity-100"
+              }`}
+            >
+              FinTrack
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={`shrink-0 p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-white/5 transition ${
+              collapsed
+                ? "absolute -right-3 top-1/2 -translate-y-1/2 bg-surface border border-border shadow-sm"
+                : ""
+            }`}
+          >
+            {collapsed ? (
+              <ChevronRightIcon className="h-4 w-4" />
+            ) : (
+              <ChevronLeftIcon className="h-4 w-4" />
+            )}
+          </button>
         </div>
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav
+          className={`flex-1 py-4 space-y-1 ${
+            collapsed ? "px-2" : "px-3"
+          }`}
+        >
           {NAV.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
               end={to === "/"}
+              title={collapsed ? label : undefined}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${
+                `flex items-center rounded-lg text-sm transition ${
+                  collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2"
+                } ${
                   isActive
                     ? "bg-accent/10 text-accent border border-accent/20"
                     : "text-text-secondary hover:bg-white/5 hover:text-text-primary border border-transparent"
                 }`
               }
             >
-              <Icon className="h-4 w-4" />
-              <span>{label}</span>
+              <Icon className="h-4 w-4 shrink-0" />
+              <span
+                className={`whitespace-nowrap transition-opacity duration-200 ${
+                  collapsed ? "w-0 opacity-0 overflow-hidden" : "opacity-100"
+                }`}
+              >
+                {label}
+              </span>
             </NavLink>
           ))}
         </nav>
-        <div className="px-4 py-3 text-[11px] text-text-muted border-t border-border">
+        <div
+          className={`text-[11px] text-text-muted border-t border-border transition-opacity duration-200 ${
+            collapsed
+              ? "h-0 opacity-0 overflow-hidden py-0 px-0"
+              : "px-4 py-3 opacity-100"
+          }`}
+        >
           v0.1.0 · Personal Finance
         </div>
       </aside>
@@ -65,9 +123,25 @@ export default function Sidebar() {
   );
 }
 
+function ChevronLeftIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function LogoMark() {
   return (
-    <svg viewBox="0 0 64 64" className="h-7 w-7">
+    <svg viewBox="0 0 64 64" className="h-7 w-7 shrink-0">
       <rect width="64" height="64" rx="14" fill="#0f1117" />
       <path
         d="M14 44 L26 28 L34 36 L50 18"
