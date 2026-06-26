@@ -158,19 +158,40 @@ App will open at [http://localhost:5173](http://localhost:5173).
 
 ## 4. Deployment
 
+Target stack: **Render Free** (backend) + **Vercel** (frontend). Push this repo to GitHub first (`shaunn17/FinTrack-AI`).
+
 ### Backend → Render
 
-1. Create a new **Web Service** from this repo, root `backend/`.
-2. Build command: `pip install -r requirements.txt`
-3. Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-4. Add environment variables: `SUPABASE_URL`, `SUPABASE_KEY`, `GROQ_API_KEY` (plus `ANTHROPIC_API_KEY` only if you re-enable Claude in code).
+**Option A — Blueprint (recommended)** — uses `render.yaml` at the repo root:
+
+1. Open [Render Blueprints](https://dashboard.render.com/blueprints) → **New Blueprint Instance**.
+2. Connect `shaunn17/FinTrack-AI`, branch `master`. Blueprint path: `render.yaml`.
+3. When prompted for secrets, set `SUPABASE_URL`, `SUPABASE_KEY`, and `GROQ_API_KEY`.
+4. Deploy. Note the service URL (e.g. `https://fintrack-api.onrender.com`).
+
+The blueprint sets `plan: free` so you are not billed for the web service. If Blueprint import asks for payment info, confirm `plan: free` is present in `render.yaml` and re-sync.
+
+**Option B — Manual Web Service** (same settings, no Blueprint):
+
+1. **New → Web Service** → connect the GitHub repo.
+2. Root directory: `backend/`. Runtime: **Python 3**.
+3. Instance type: **Free** (not Starter).
+4. Build: `pip install -r requirements.txt`
+5. Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+6. Health check path: `/health`
+7. Environment variables: `SUPABASE_URL`, `SUPABASE_KEY`, `GROQ_API_KEY` (plus `ANTHROPIC_API_KEY` only if you re-enable Claude in code).
+
+Python version is pinned in `backend/runtime.txt` (`python-3.13.2`).
+
+> **Free tier:** the API sleeps after ~15 minutes of inactivity; the first request after that may take 30–60s (cold start).
 
 ### Frontend → Vercel
 
-1. Import the repo, set the project root to `frontend/`.
+1. Import the repo at [vercel.com](https://vercel.com), set the project root to `frontend/`.
 2. Framework preset: **Vite**.
-3. Build command: `npm run build`. Output dir: `dist`.
-4. Environment variable: `VITE_API_BASE_URL=https://your-render-app.onrender.com`.
+3. Build command: `npm run build`. Output directory: `dist`.
+4. Environment variable: `VITE_API_BASE_URL=https://fintrack-api.onrender.com` (your Render URL, **no** `/api` suffix).
+5. Redeploy after the backend URL is live. SPA routing is handled by `frontend/vercel.json`.
 
 ---
 

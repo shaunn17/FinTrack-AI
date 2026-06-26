@@ -1,16 +1,18 @@
 # Render Blueprint — import at https://dashboard.render.com/blueprints
 # Or create a Web Service manually with the same settings (see README §4).
+#
+# plan: free is required for $0 deploy — without it Render defaults to starter ($7/mo)
+# and may prompt for payment info during Blueprint import.
 services:
   - type: web
     name: fintrack-api
     runtime: python
+    plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.13.2"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
