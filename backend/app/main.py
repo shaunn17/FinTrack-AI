@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from .db.database import supabase
 from .routers import budget, chat, insights, investments, stocks
 
 app = FastAPI(
@@ -25,6 +26,10 @@ app.add_middleware(
 
 @app.get("/health")
 def health_check():
+    try:
+        supabase.table("monthly_income").select("id").limit(1).execute()
+    except Exception:
+        raise HTTPException(status_code=503, detail="database unavailable")
     return {"status": "ok"}
 
 
